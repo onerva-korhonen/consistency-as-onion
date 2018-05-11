@@ -30,6 +30,7 @@ if testDefSphericalROIs:
         print "defSphericalROIs: testcase 1 OK"
         
     # testcase 2: small example space
+    # TODO: the test should pass: trueMap and sphereMap have same rows but in different order. How to check for this?
     space = np.zeros((4,4,4))
     w1, w2, w3 = np.where(space==0)
     voxels = np.zeros((64,3))
