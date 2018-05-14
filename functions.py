@@ -59,11 +59,17 @@ def getDistanceMatrix(ROICentroids, voxelCoords, save=False, savePath=''):
     --------
     distanceMatrix: nROIs x nVoxels np.array, matrix of distances of each voxel from each ROI centroid
     """
-    nROIs = ROICentroids.shape[0]
+    if len(ROICentroids.shape) == 1:
+        nROIs = 1
+    else:
+        nROIs = ROICentroids.shape[0]
     nVoxels = voxelCoords.shape[0]
     distanceMatrix = np.zeros((nROIs, nVoxels))
-    for i, centroid in enumerate(ROICentroids):
-        distanceMatrix[i,:] = np.sqrt(np.sum((voxelCoords-centroid)**2,axis=1))
+    if nROIs == 1:
+        distanceMatrix[0,:] = np.sqrt(np.sum((voxelCoords-ROICentroids)**2,axis=1))
+    else:
+        for i, centroid in enumerate(ROICentroids):
+            distanceMatrix[i,:] = np.sqrt(np.sum((voxelCoords-centroid)**2,axis=1))
     if save:
         distanceData = {}
         distanceData['distence_matrix'] = distanceMatrix
@@ -161,7 +167,10 @@ def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names
                             input parameter for a ROI, this is set to ''. 
                             len(ROINames) = NROIs.
     """
-    nROIs = np.amax(ROICentroids.shape)    
+    if len(ROICentroids.shape) == 1:
+        nROIs = 1
+    else:
+        nROIs = ROICentroids.shape[0]    
     
     distanceMatrix = getDistanceMatrix(ROICentroids, voxelCoords, save=save, savePath=savePath)
     physicalRadius = radius*resolution

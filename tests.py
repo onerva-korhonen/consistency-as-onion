@@ -30,7 +30,6 @@ if testDefSphericalROIs:
         print "defSphericalROIs: testcase 1 OK"
         
     # testcase 2: small example space
-    # TODO: the test should pass: trueMap and sphereMap have same rows but in different order. How to check for this?
     space = np.zeros((4,4,4))
     w1, w2, w3 = np.where(space==0)
     voxels = np.zeros((64,3))
@@ -38,20 +37,43 @@ if testDefSphericalROIs:
         voxels[i,:] = [x,y,z]
     centroids = np.array([[2,2,2],[1,2,3]])
     map1 = np.array([[2,2,2],[1,2,2],[2,1,2],[2,2,1],[3,2,2],[2,3,2],[2,2,3]])
+    map1 = np.sort(map1, axis=0)
     map2 = np.array([[1,2,3],[0,2,3],[1,1,3],[1,2,2],[2,2,3],[1,3,3]]) #[1,2,4] is outside of the space and thus not included
+    map2 = np.sort(map2, axis=0)
     
     spheres = functions.defineSphericalROIs(centroids, voxels, 1, resolution=1)
     diff = 0
     for sphereMap,trueMap in zip(spheres['ROIMaps'],[map1,map2]):
-        print sphereMap
-        print trueMap
-        print 'break'
+        sphereMap = np.sort(sphereMap, axis=0) # sorts the array columnwise; distorts the original rows but gives same output for all arrays with the same contents (independent of the row order)
         diff = diff + np.sum(np.abs(sphereMap - trueMap))
     
-    print diff
     if diff == 0:
         print "defSphericalROIs: testcase 2 OK"
+        
+    # testcase 3: changing sphere size:
+    map3 = np.array([[2,2,2],[1,2,2],[2,1,2],[2,2,1],[3,2,2],[2,3,2],[2,2,3], # centroid + at distance 1
+                     [0,2,2],[2,0,2],[2,2,0],[1,1,2],[2,1,1],[1,2,1], # at distance 2
+                     [3,3,2],[2,3,3],[3,2,3],[1,3,2],[3,1,2],[2,1,3],[2,3,1],[1,2,3],[3,2,1], # at distance sqrt(2)
+                     [1,1,1],[1,3,1],[1,1,3],[3,1,1],[3,3,1],[3,1,3],[1,3,3],[3,3,3]]) #at distance sqrt(3)
+    map3 = np.sort(map3, axis=0)    
+
+    spheres = functions.defineSphericalROIs(centroids[0], voxels, 2, resolution=1)
+    sphereMap = np.sort(spheres['ROIMaps'][0], axis=0)
+    diff = np.sum(np.abs(sphereMap - map3))
     
+    if diff == 0:
+        print 'defSphericalROIs: testcase 3 OK'
+        
+    # testcase 4: changing resolution
+    # NOTE: this is only for testing purposes and should not be used like this for real analyses
+    # In actual use, the distance between the points in the sphere should equal resolution
+    
+    spheres = functions.defineSphericalROIs(centroids[0], voxels, 1, resolution=2)
+    sphereMap = np.sort(spheres['ROIMaps'][0], axis=0)
+    diff = np.sum(np.abs(sphereMap - map3))
+    
+    if diff == 0:
+        print 'defSphericalROIs: testcase 4 OK'
     
     
 
