@@ -16,29 +16,32 @@ from scipy import io
 def readROICentroids(ROIInfoFile, readVoxels=False):
     """
     Reads ROI data, in particular the coordinates of ROI centroids. An option
-    for reading coordinates of all voxels exist
+    for reading coordinates of all voxels exist. 
     
     Parameters:
     -----------
-        ROIInfoFile: str, path to the file that contains information about ROIs
-        readVoxels: bool, will voxel coordinates be read? (default=False)
+    ROIInfoFile: str, path to the file that contains information about ROIs
+    readVoxels: bool, will voxel coordinates be read? (default=False)
         
     Returns:
     --------
-        ROICentroids: nROIs x 3 np.array, coordinates of the centroids of the ROIs
-        voxelCoordinates: nVoxels x 3 np.array, coordinates of all voxels
+    ROICentroids: nROIs x 3 np.array, coordinates (in voxels) of the centroids of the ROIs
+    ROIMNICentroids: nROIs x 3 np.array, coordinates (in mm) of the centroids of the ROIs
+    voxelCoordinates: nVoxels x 3 np.array, coordinates (in voxels) of all voxels
     """
     infoData = io.loadmat(ROIInfoFile)
     ROIInfo = infoData['rois'][0]
     nROIs = ROIInfo.shape[0] # number of ROIs
-    ROIcentroids = np.zeros((nROIs,3))
+    ROICentroids = np.zeros((nROIs,3))
+    ROIMNICentroids = np.zeros((nROIs,3))
     voxelCoordinates = []
     for i, ROI in enumerate(ROIInfo):
-        ROIcentroids[i,:] = ROI['centroid'][0]
+        ROICentroids[i,:] = ROI['centroid'][0]
+        ROIMNICentroids[i,:] = ROI['centroidMNI'][0]
         if readVoxels:
             voxelCoordinates.extend(list(ROI['map']))
     voxelCoordinates = np.array(voxelCoordinates)
-    return ROIcentroids, voxelCoordinates
+    return ROICentroids, ROIMNICentroids, voxelCoordinates
     
 def getDistanceMatrix(ROICentroids, voxelCoords, save=False, savePath=''):
     """
@@ -86,8 +89,8 @@ def calculateSpatialConsistency(voxelIndices, voxelTsFilePath, type='pearson c',
     Parameters:
     -----------
     voxelIdices: np.array, indices of voxels; these indices should refer to voxels' 
-            locations in the file containing voxel time series; nete that the chunk
-            must contain more than one voxel
+            locations in the file containing voxel time series; note that the chunk
+            must contain at least one voxel
     voxelTsFilePath: str, path to a file that contains the voxel time series;
             the file should contain a dictionary with a key 'roi_voxel_data' (and
             possible additional keys), value assigned to this key is a structured
@@ -110,7 +113,6 @@ def calculateSpatialConsistency(voxelIndices, voxelTsFilePath, type='pearson c',
         if np.amax(voxelIndices.shape) == 1:
             spatialConsistency = 1. # a single voxel is always fully consistent
         else:
-        
             allVoxelTs = io.loadmat(voxelTsFilePath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
             voxelTs = allVoxelTs[voxelIndices,:]
             if type == 'pearson c':
@@ -127,7 +129,7 @@ def calculateSpatialConsistency(voxelIndices, voxelTsFilePath, type='pearson c',
     except ValueError as error:
         print error.message
         
-def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names='', save=False, savePath=''):
+def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names='', distanceMatrixPath='', save=False, savePath=''):
     """
     Constructs a set of (approximately) spherical ROIs with a given radius located
     around a given set of centroid points.
@@ -146,6 +148,8 @@ def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names
                 of radius in mm. Default = 4.
     names: list of strs, names of the ROIs, can be e.g. the anatomical name associated with
            the centroid. Default = ''.
+    distanceMatrixPath: str, path of an existing distance matrix. If distanceMatrixPath is given,
+                        the existing matrix will be used instead of calculating a new one.
     save: bool, will the distance matrix between ROI centroids and voxels
           be saved in a file? (default=False). Consider saving if resolution
           is very high and number of voxels very large.
@@ -172,8 +176,10 @@ def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names
     else:
         nROIs = ROICentroids.shape[0]    
     
-    distanceMatrix = getDistanceMatrix(ROICentroids, voxelCoords, save=save, savePath=savePath)
-    physicalRadius = radius*resolution
+    if distanceMatrixPath == '':
+        distanceMatrix = getDistanceMatrix(ROICentroids, voxelCoords, save=save, savePath=savePath)
+    else:
+        distanceMatrix = pickle.load(distanceMatrixPath)
     
     ROIMaps = []
     ROIVoxels = []
@@ -185,7 +191,7 @@ def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names
             ROIMap = centroid
             ROISize = 1
         else:
-            voxelIndices = np.where(distances <= physicalRadius)[0]
+            voxelIndices = np.where(distances <= radius)[0]
             ROIMap = voxelCoords[voxelIndices,:]
             ROISize = np.amax(voxelIndices.shape)
         
@@ -196,6 +202,8 @@ def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names
     sphericalROIs = {'ROICentroids':ROICentroids,'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels,'ROISizes':ROISizes,'ROINames':names}
     
     return sphericalROIs
+
+
         
         
     

@@ -15,7 +15,7 @@ testDefSphericalROIs = True
 # testing defSphericalROIs
 if testDefSphericalROIs: 
     ROIPath = 'atlases/brainnetome/brainnetome_thr25_4mm_rois.mat'
-    centroids, voxelCoords = functions.readROICentroids(ROIPath, readVoxels=True)
+    centroids, _, voxelCoords = functions.readROICentroids(ROIPath, readVoxels=True)
     
     # testcase 1: ROIs with radius < 1 should contain only ROI centroids
     spheres = functions.defineSphericalROIs(centroids, voxelCoords, 0)
@@ -65,15 +65,9 @@ if testDefSphericalROIs:
         print 'defSphericalROIs: testcase 3 OK'
         
     # testcase 4: changing resolution
-    # NOTE: this is only for testing purposes and should not be used like this for real analyses
-    # In actual use, the distance between the points in the sphere should equal resolution
-    
-    spheres = functions.defineSphericalROIs(centroids[0], voxels, 1, resolution=2)
-    sphereMap = np.sort(spheres['ROIMaps'][0], axis=0)
-    diff = np.sum(np.abs(sphereMap - map3))
-    
-    if diff == 0:
-        print 'defSphericalROIs: testcase 4 OK'
+    # NOTE: I've removed the old testcase 4 on 13 Oct 2018: It assumed that voxel coordinates
+    # are saved in millimeters while they are actually saved in voxels. So, the testcase didn't
+    # match the reality and lead to wrong conclusions.
     
     
 
