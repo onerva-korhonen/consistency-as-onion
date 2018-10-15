@@ -16,7 +16,7 @@ import onion_parameters as params
 
 subjectFolders = params.testSubjectFolders
 nSubjects = len(subjectFolders)
-roiInfoFile = 'atlases/brainnetome/brainnetome_thr25_4mm_rois.mat'
+roiInfoFile = '/home/onerva/test-data/group_roi_mask-30-4mm_with_subcortl_and_cerebellum.mat'
 resolution = 4
 distanceMatrixPath = params.distanceMatrixPath
 

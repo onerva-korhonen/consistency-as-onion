@@ -8,8 +8,8 @@ A storage file for the parameters used in the "Consistency as onion" project.
 """
 # Data locations and other file paths:
 
-testSubjectFolders = ['/home/onerva/test-data/010',
-                      '/home/onerva/test-data/011']
+testSubjectFolders = ['/home/onerva/test-data/010/',
+                      '/home/onerva/test-data/011/']
 
 # Input file names:
 

@@ -75,7 +75,7 @@ def getDistanceMatrix(ROICentroids, voxelCoords, save=False, savePath=''):
             distanceMatrix[i,:] = np.sqrt(np.sum((voxelCoords-centroid)**2,axis=1))
     if save:
         distanceData = {}
-        distanceData['distence_matrix'] = distanceMatrix
+        distanceData['distanceMatrix'] = distanceMatrix
         with open(savePath, 'wb') as f:
             pickle.dump(distanceData, f, -1)
     return distanceMatrix
@@ -106,28 +106,52 @@ def calculateSpatialConsistency(voxelIndices, voxelTsFilePath, type='pearson c',
     --------
     spatialConsistency: dbl, value of spatial consistency
     """
-    try:
-        if np.amax(voxelIndices.shape) == 0:
-            raise ValueError('voxelIndices is empty, cannot calculate consistency')
-            
-        if np.amax(voxelIndices.shape) == 1:
-            spatialConsistency = 1. # a single voxel is always fully consistent
-        else:
-            allVoxelTs = io.loadmat(voxelTsFilePath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
-            voxelTs = allVoxelTs[voxelIndices,:]
-            if type == 'pearson c':
-                correlations = np.corrcoef(voxelTs)
-                correlations = correlations[np.tril_indices(voxelTs.shape[0],k=-1)] # keeping only the lower triangle, diagonal is discarded
-                if fTransform:
-                    correlations = np.arctanh(correlations)
-                    spatialConsistency = np.tanh(np.mean(correlations))
-                else:
-                    spatialConsistency = np.mean(correlations)
+# NOTE: What follows is ugly... At the moment, I'll accept empty voxel groups (and
+# return consistency = 0). However, it's probably that the try-except structure will be reactivated
+# later so let's keep it here as a comment...
+#    try: 
+#        if np.amax(voxelIndices.shape) == 0:
+#            raise ValueError('voxelIndices is empty, cannot calculate consistency')
+#            
+#        if np.amax(voxelIndices.shape) == 1:
+#            spatialConsistency = 1. # a single voxel is always fully consistent
+#        else:
+#            allVoxelTs = io.loadmat(voxelTsFilePath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
+#            voxelTs = allVoxelTs[voxelIndices,:]
+#            if type == 'pearson c':
+#                correlations = np.corrcoef(voxelTs)
+#                correlations = correlations[np.tril_indices(voxelTs.shape[0],k=-1)] # keeping only the lower triangle, diagonal is discarded
+#                if fTransform:
+#                    correlations = np.arctanh(correlations)
+#                    spatialConsistency = np.tanh(np.mean(correlations))
+#                else:
+#                    spatialConsistency = np.mean(correlations)
+#            else:
+#                spatialConsistency = 0
+#        return spatialConsistency
+#    except ValueError as error:
+#        print error.message
+    if np.amax(voxelIndices.shape) == 0:
+        spatialConsistency = 0
+        print "Detected an empty ROI, set consistency to 0."
+    elif np.amax(voxelIndices.shape) == 1:
+        spatialConsistency = 1. # a single voxel is always fully consistent
+    else:
+        allVoxelTs = io.loadmat(voxelTsFilePath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
+        voxelTs = allVoxelTs[voxelIndices,:]
+        if type == 'pearson c':
+            correlations = np.corrcoef(voxelTs)
+            correlations = correlations[np.tril_indices(voxelTs.shape[0],k=-1)] # keeping only the lower triangle, diagonal is discarded
+            if fTransform:
+                correlations = np.arctanh(correlations)
+                spatialConsistency = np.tanh(np.mean(correlations))
             else:
-                spatialConsistency = 0
-        return spatialConsistency
-    except ValueError as error:
-        print error.message
+                spatialConsistency = np.mean(correlations)
+        else:
+            spatialConsistency = 0
+    if np.isnan(spatialConsistency):
+        print 'nan detected!'
+    return spatialConsistency
         
 def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names='', distanceMatrixPath='', save=False, savePath=''):
     """
@@ -179,7 +203,10 @@ def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names
     if distanceMatrixPath == '':
         distanceMatrix = getDistanceMatrix(ROICentroids, voxelCoords, save=save, savePath=savePath)
     else:
-        distanceMatrix = pickle.load(distanceMatrixPath)
+         f = open(distanceMatrixPath, "rb")
+         data = pickle.load(f)
+         f.close()
+         distanceMatrix = data['distanceMatrix']
     
     ROIMaps = []
     ROIVoxels = []
