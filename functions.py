@@ -13,7 +13,7 @@ import cPickle as pickle
 from scipy import io
 
 
-def readROICentroids(ROIInfoFile, readVoxels=False):
+def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False):
     """
     Reads ROI data, in particular the coordinates of ROI centroids. An option
     for reading coordinates of all voxels exist. 
@@ -22,6 +22,8 @@ def readROICentroids(ROIInfoFile, readVoxels=False):
     -----------
     ROIInfoFile: str, path to the file that contains information about ROIs
     readVoxels: bool, will voxel coordinates be read? (default=False)
+    fixCentroids: bool, if fixCentroids=True, the function will return as centroid 
+                  the one of ROI's voxels that is closest to the actual centroid.
         
     Returns:
     --------
@@ -36,7 +38,14 @@ def readROICentroids(ROIInfoFile, readVoxels=False):
     ROIMNICentroids = np.zeros((nROIs,3))
     voxelCoordinates = []
     for i, ROI in enumerate(ROIInfo):
-        ROICentroids[i,:] = ROI['centroid'][0]
+        centroid = ROI['centroid'][0]
+        if fixCentroids:
+            ROIMap = ROI['map']
+            distances = np.zeros(ROIMap.shape[0])
+            for j, voxel in enumerate(ROIMap):
+                distances[j] = np.sqrt(np.sum((voxel-centroid)**2,axis=1))
+            centroid = ROIMap[np.where(distances==np.amin(distances))]
+        ROICentroids[i,:] = centroid
         ROIMNICentroids[i,:] = ROI['centroidMNI'][0]
         if readVoxels:
             voxelCoordinates.extend(list(ROI['map']))
