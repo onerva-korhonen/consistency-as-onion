@@ -8,8 +8,8 @@ A storage file for the parameters used in the "Consistency as onion" project.
 """
 # Data locations and other file paths:
 
-testSubjectFolders = ['/home/onerva/test-data/010/',
-                      '/home/onerva/test-data/011/']
+testSubjectFolders = ['/media/onerva/KINGSTON/test-data/010/',
+                      '/media/onerva/KINGSTON/test-data/011/']
 
 # Input file names:
 
@@ -18,5 +18,6 @@ ROIVoxelTsInfoFileName = 'roi_voxel_ts_all_rois4mm_WHM0_info.mat'
 
 # Paths for saving
 
-distanceMatrixPath = '/home/onerva/test-data/outcome/distance-matrix-brainnetome-4mm.pkl'
+distanceMatrixPath = '/media/onerva/KINGSTON/test-data/outcome/distance-matrix-brainnetome-4mm.pkl'
+consistencyVsRadiusPath = '/media/onerva/KINGSTON/test-data/outcome/consistency-over-radia-brainnetome-4mm-test.pkl'
 

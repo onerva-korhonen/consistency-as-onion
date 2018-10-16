@@ -80,7 +80,7 @@ def getDistanceMatrix(ROICentroids, voxelCoords, save=False, savePath=''):
             pickle.dump(distanceData, f, -1)
     return distanceMatrix
     
-def calculateSpatialConsistency(voxelIndices, voxelTsFilePath, type='pearson c', fTransform=False):
+def calculateSpatialConsistency(voxelIndices, allVoxelTs, type='pearson c', fTransform=False):
     """
     Calculates the spatial consistency of a chunk of voxels. By default,
     spatial consistency is defined as the mean Pearson correlation coefficient
@@ -91,10 +91,7 @@ def calculateSpatialConsistency(voxelIndices, voxelTsFilePath, type='pearson c',
     voxelIdices: np.array, indices of voxels; these indices should refer to voxels' 
             locations in the file containing voxel time series; note that the chunk
             must contain at least one voxel
-    voxelTsFilePath: str, path to a file that contains the voxel time series;
-            the file should contain a dictionary with a key 'roi_voxel_data' (and
-            possible additional keys), value assigned to this key is a structured
-            np.array with a field name 'roi_voxel_ts' (and possible additional 
+    allVoxelTs: structured np.array with a field name 'roi_voxel_ts' (and possible additional 
             fields), this field contains voxel time series
     type: str, definition of spatial consistency to be used; default:
           'pearson c' (mean Pearson correlation coefficient), other options:
@@ -136,8 +133,7 @@ def calculateSpatialConsistency(voxelIndices, voxelTsFilePath, type='pearson c',
         print "Detected an empty ROI, set consistency to 0."
     elif np.amax(voxelIndices.shape) == 1:
         spatialConsistency = 1. # a single voxel is always fully consistent
-    else:
-        allVoxelTs = io.loadmat(voxelTsFilePath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
+    else: 
         voxelTs = allVoxelTs[voxelIndices,:]
         if type == 'pearson c':
             correlations = np.corrcoef(voxelTs)
