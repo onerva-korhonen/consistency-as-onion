@@ -1,0 +1,6 @@
+Questions & Answers related to the code
+
+I collect here questions that have puzzled me and are probably to puzzle me again. More than anything else, this is my attempt to understand my own code...
+
+Q: Why is ROIMaps in the output of defineSphericalROIs a list and not an np.array?
+A: We don't know beforehand the size of ROIs: voxels not belonging to the analysis mask can't be added to a ROI and therefore some ROIs contain less voxels than they would if they were perfectly spherical. Therefore, it's not possible to pre-define ROIMap as an array. Further, it can't be turned to an array later on: as different ROIs contain different numbers of voxels, the dimensions wouldn't match. Same applies to ROIVoxels: different ROIs have different numbers of voxels.

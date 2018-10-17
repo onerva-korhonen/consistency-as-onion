@@ -169,7 +169,8 @@ def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names
                   This can be a ROI centroid from an atlas but also any other
                   (arbitrary) point.
     voxelCoords: nVoxels x 3 np.array, coordinates of all voxels. Must be
-                      in the same space with ROICentoids
+                 in the same space with ROICentoids. Coordinates must be ordered by ROIs:
+                 first all voxels of ROI 1, then all voxels of ROI 2, etc.
     radius: dbl, radius of the sphere measured by number of voxels. A sphere with
             radius = 1 contains the centroid and it's six closest neighbors. If 
             radius < 1, the sphere will contain only the centroid.
@@ -234,9 +235,75 @@ def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names
     sphericalROIs = {'ROICentroids':ROICentroids,'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels,'ROISizes':ROISizes,'ROINames':names}
     
     return sphericalROIs
+    
+def findNeighbors(voxelCoords, resolution=1):
+    """
+    Returns the 6 closest neighbors (the ones sharing a face) of a voxel.
+    
+    Parameters:
+    -----------
+    voxelCoords: 1x3 np.array, coordinates of a voxel (either in voxels or in mm)
+    resolution: double, distance between voxels if coordinates are given in mm;
+                if coordinates are given in voxels, use the default value 1 (voxels
+                are 1 voxel away from each other).
+                
+    Returns:
+    --------    
+    neighbors: 6x6 np.array, coordinates of the closest neighbors of the voxel
+    """
+    x = voxelCoords[0]
+    y = voxelCoords[1]
+    z = voxelCoords[2]    
+    
+    neighbors = np.array([[x+resolution,y,z],
+                         [x-resolution,y,z],
+                         [x,y+resolution,z],
+                         [x,y-resolution,z],
+                         [x,y,z+resolution],
+                         [x,y,z-resolution]])
+                         
+    return neighbors
+    
+def getROIlessVoxels(voxelCoordinates,ROIInfo):
+    """
+    Returns the indices of voxels that do not belong to any ROI.
+    
+    Parameters:
+    -----------
+    voxelCoordinates: nVoxels x 3 np.array, coordinates (in voxels) of all voxels
+    ROIInfo: dic, contains:
+             ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
+                           belonging to each ROI. len(ROIMaps) = nROIs.
+             ROIVoxels: list of ROISizes x 1 np.array, indices of the voxels belonging
+                     to each ROI. These indices refer to the columns of
+                     the distance matrix, as well as to the rows of the
+                     voxel time series file. len(ROIVoxels) = nROIs.
+    Returns:
+    --------
+    ROIlessVoxels: dic, contains:
+                   ROIlessIndices: list, indices of ROIless voxels in voxelCoordinates
+                   ROIlessMap: NROIless x 3 np.arrays, coordinates of the ROIless voxels
+    """
+    ROIMaps = ROIInfo['ROIMaps']
+    for i, ROI in enumerate(ROIMaps):
+        if i == 0:
+            inROIVoxels = ROI
+        else:
+            inROIVoxels = np.concatenate((inROIVoxels,ROI),axis=0)
+    ROIlessIndices = []
+    ROIlessMap = []
+    for i, voxel in enumerate(voxelCoordinates):
+        if len(np.where(inROIVoxels==voxel)[0]) == 0: # voxel is not found in any ROI map
+            ROIlessIndices.append(i)
+            ROIlessMap.append(voxel)
+    ROIlessVoxels = {'ROIlessIndices':ROIlessIndices,'ROIlessMap':ROIlessMap}
+    return ROIlessVoxels
+    
+    
+    
 
 
-        
+   
         
     
         

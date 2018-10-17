@@ -11,6 +11,7 @@ import functions
 import numpy as np
 
 testDefSphericalROIs = True
+testGetROIlessVoxels = True
 
 # testing defSphericalROIs
 if testDefSphericalROIs: 
@@ -68,6 +69,40 @@ if testDefSphericalROIs:
     # NOTE: I've removed the old testcase 4 on 13 Oct 2018: It assumed that voxel coordinates
     # are saved in millimeters while they are actually saved in voxels. So, the testcase didn't
     # match the reality and lead to wrong conclusions.
+        
+# testing getROIlessVoxels
+        
+if testGetROIlessVoxels:
+    # testcase 1: a very small space with two small ROIs
+    space = np.zeros((2,2,2))
+    w1, w2, w3 = np.where(space==0)
+    voxels = np.zeros((8,3))
+    for i, (x, y, z) in enumerate(zip(w1,w2,w3)):
+        voxels[i,:] = [x,y,z]
+    
+    ROI1 = np.array([[0,0,0],[0,1,0]])
+    ROI2 = np.array([[0,0,1],[1,0,0],[0,1,1]])
+    ROIMaps = [ROI1,ROI2]
+    ROIVoxels = [np.array([0,1]),np.array([2,3,4])]
+    ROIInfo = {'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels}
+    
+    trueROIless = np.array([[1,0,1],[1,1,0],[1,1,1]])
+    trueROIlessIndices = [5,6,7]
+    
+    ROIlessVoxels = functions.getROIlessVoxels(voxels,ROIInfo)
+    testROIless = ROIlessVoxels['ROIlessMap']
+    testROIlessIndices = ROIlessVoxels['ROIlessIndices']
+    
+    mapDif = np.sum(np.abs(trueROIless - testROIless))
+    indDif = np.sum(np.abs(np.array(trueROIlessIndices)-np.array(testROIlessIndices)))
+    
+    if mapDif == 0:
+        print 'getROIlessVoxels: maps of ROIless voxels OK'
+    if indDif == 0:
+        print 'getROIlessVoxels: indices of ROIless voxels OK'
+    
+    
+
     
     
 
