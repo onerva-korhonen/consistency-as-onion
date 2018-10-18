@@ -236,7 +236,7 @@ def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names
     
     return sphericalROIs
     
-def findNeighbors(voxelCoords, resolution=1):
+def findNeighbors(voxelCoords, resolution=1, allVoxels=[]):
     """
     Returns the 6 closest neighbors (the ones sharing a face) of a voxel.
     
@@ -246,6 +246,8 @@ def findNeighbors(voxelCoords, resolution=1):
     resolution: double, distance between voxels if coordinates are given in mm;
                 if coordinates are given in voxels, use the default value 1 (voxels
                 are 1 voxel away from each other).
+    allVoxels: iterable, coordinates of all acceptable voxels. If allVoxels is given,
+               only neighbors in allVoxels are returned (default: []).
                 
     Returns:
     --------    
@@ -262,11 +264,17 @@ def findNeighbors(voxelCoords, resolution=1):
                          [x,y,z+resolution],
                          [x,y,z-resolution]])
                          
+    if not len(allVoxels) == 0:
+        accepted = np.zeros(neighbors.shape[0])
+        for i, neighbor in enumerate(neighbors):
+            accepted[i] = np.any((np.array(allVoxels) == neighbor).all(axis=1))
+        neighbors = neighbors[np.where(accepted)]
+                         
     return neighbors
     
-def getROIlessVoxels(voxelCoordinates,ROIInfo):
+def findROIlessVoxels(voxelCoordinates,ROIInfo):
     """
-    Returns the indices of voxels that do not belong to any ROI.
+    Returns the indices and coordinates of voxels that do not belong to any ROI.
     
     Parameters:
     -----------
@@ -281,8 +289,8 @@ def getROIlessVoxels(voxelCoordinates,ROIInfo):
     Returns:
     --------
     ROIlessVoxels: dic, contains:
-                   ROIlessIndices: list, indices of ROIless voxels in voxelCoordinates
-                   ROIlessMap: NROIless x 3 np.arrays, coordinates of the ROIless voxels
+                   ROIlessIndices: NROIless x 1 np.array, indices of ROIless voxels in voxelCoordinates
+                   ROIlessMap: NROIless x 3 np.array, coordinates of the ROIless voxels
     """
     ROIMaps = ROIInfo['ROIMaps']
     for i, ROI in enumerate(ROIMaps):
@@ -296,9 +304,42 @@ def getROIlessVoxels(voxelCoordinates,ROIInfo):
         if not np.any((inROIVoxels == voxel).all(axis=1)): # voxel is not found in any ROI map
             ROIlessIndices.append(i)
             ROIlessMap.append(voxel)
+    ROIlessIndices = np.array(ROIlessIndices)
+    ROIlessMap = np.array(ROIlessMap)
     ROIlessVoxels = {'ROIlessIndices':ROIlessIndices,'ROIlessMap':ROIlessMap}
     return ROIlessVoxels
     
+def findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo):
+    """
+    Finds the neighboring voxels of a ROI that do not belong to any ROI.
+    
+    Parameters:
+    -----------
+    ROIIndex: int, index of the ROI in the lists of ROIInfo (see below)
+    voxelCoordinates: nVoxels x 3 np.array, coordinates (in voxels) of all voxels
+    ROIInfo: dic, contains:
+             ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
+                           belonging to each ROI. len(ROIMaps) = nROIs.
+             ROIVoxels: list of ROISizes x 1 np.array, indices of the voxels belonging
+                     to each ROI. These indices refer to the columns of
+                     the distance matrix, as well as to the rows of the
+                     voxel time series file. len(ROIVoxels) = nROIs.
+    Returns:
+    --------
+    ROIlessNeighbors: dic, contains:
+                      ROIlessIndices: list, indices of ROIless neighbor voxels in voxelCoordinates
+                      ROIlessMap: NNeighbors x 3 np.array, coordinates of ROIless neighbor voxels
+    """
+    ROIMap = ROIInfo['ROIMaps'][ROIIndex]
+    for i, voxel in enumerate(ROIMap):
+       neighbors = findNeighbors(voxel,allVoxels=voxelCoordinates)
+       if i == 0:
+           ROINeighbors = neighbors
+       else:
+           ROINeighbors = np.concatenate((ROINeighbors,neighbors),axis=0)
+    ROINeighbors = np.unique(ROINeighbors,axis=0) # removing dublicates
+    ROIlessNeighbors = findROIlessVoxels(ROINeighbors,ROIInfo)
+    return ROIlessNeighbors
     
     
 

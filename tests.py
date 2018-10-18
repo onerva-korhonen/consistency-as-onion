@@ -11,7 +11,8 @@ import functions
 import numpy as np
 
 testDefSphericalROIs = True
-testGetROIlessVoxels = True
+testFindROIlessVoxels = True
+testFindROIlessNeighbors = True
 
 # testing defSphericalROIs
 if testDefSphericalROIs: 
@@ -72,7 +73,7 @@ if testDefSphericalROIs:
         
 # testing getROIlessVoxels
         
-if testGetROIlessVoxels:
+if testFindROIlessVoxels:
     # testcase 1: a very small space with two small ROIs
     space = np.zeros((2,2,2))
     w1, w2, w3 = np.where(space==0)
@@ -89,7 +90,7 @@ if testGetROIlessVoxels:
     trueROIless = np.array([[1,0,1],[1,1,0],[1,1,1]])
     trueROIlessIndices = [5,6,7]
     
-    ROIlessVoxels = functions.getROIlessVoxels(voxels,ROIInfo)
+    ROIlessVoxels = functions.findROIlessVoxels(voxels,ROIInfo)
     testROIless = ROIlessVoxels['ROIlessMap']
     testROIlessIndices = ROIlessVoxels['ROIlessIndices']
     
@@ -97,11 +98,48 @@ if testGetROIlessVoxels:
     indDif = np.sum(np.abs(np.array(trueROIlessIndices)-np.array(testROIlessIndices)))
     
     if mapDif == 0:
-        print 'getROIlessVoxels: maps of ROIless voxels OK'
+        print 'findROIlessVoxels: maps of ROIless voxels OK'
     if indDif == 0:
-        print 'getROIlessVoxels: indices of ROIless voxels OK'
+        print 'findROIlessVoxels: indices of ROIless voxels OK'
+        
+if testFindROIlessNeighbors:
+    # testcase 1: a very small space with two small ROIs    
+    space = np.zeros((2,2,2))
+    w1, w2, w3 = np.where(space==0)
+    voxels = np.zeros((8,3))
+    for i, (x, y, z) in enumerate(zip(w1,w2,w3)):
+        voxels[i,:] = [x,y,z]
+        
+    ROI1 = np.array([[0,0,0],[0,1,0],[1,1,0],[1,0,0]])
+    ROI2 = np.array([[1,0,1]])
+    ROIMaps = [ROI1,ROI2]
+    ROIVoxels = [np.array([0,2,6,4]),np.array([5])]
+    ROIInfo = {'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels}
     
+    trueROIless1 = np.array([[0,0,1],[0,1,1],[1,1,1],])
+    trueROIlessIndices1 = np.array([1,3,7])
+    trueROIless2 = np.array([[0,0,1],[1,1,1]])
+    trueROIlessIndices2 = np.array([1,7])
     
+    testROIlessNeighbors1 = functions.findROIlessNeighbors(0,voxels,ROIInfo)
+    testROIless1 = testROIlessNeighbors1['ROIlessMap']
+    testROIlessIndices1 = testROIlessNeighbors1['ROIlessIndices']
+    
+    mapDif1 = np.sum(np.abs(trueROIless1 - testROIless1))
+    indDif1 = np.sum(np.abs(trueROIlessIndices1 - testROIlessIndices1))
+    
+    testROIlessNeighbors2 = functions.findROIlessNeighbors(1,voxels,ROIInfo)
+    testROIless2 = testROIlessNeighbors2['ROIlessMap']
+    testROIlessIndices2 = testROIlessNeighbors2['ROIlessIndices']
+    
+    mapDif2 = np.sum(np.abs(trueROIless2 - testROIless2))
+    indDif2 = np.sum(np.abs(trueROIlessIndices2 - testROIlessIndices2))
+    
+    if max(mapDif1,mapDif2) == 0:
+        print 'findROIlessNeighbors: maps of ROIless neighbors OK'
+        
+    if max(indDif1,indDif2) == 0:
+        print 'findROIlessNeighbors: indices of ROIless neighbors OK'
 
     
     
