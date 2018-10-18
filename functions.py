@@ -293,7 +293,7 @@ def getROIlessVoxels(voxelCoordinates,ROIInfo):
     ROIlessIndices = []
     ROIlessMap = []
     for i, voxel in enumerate(voxelCoordinates):
-        if len(np.where(inROIVoxels==voxel)[0]) == 0: # voxel is not found in any ROI map
+        if not np.any((inROIVoxels == voxel).all(axis=1)): # voxel is not found in any ROI map
             ROIlessIndices.append(i)
             ROIlessMap.append(voxel)
     ROIlessVoxels = {'ROIlessIndices':ROIlessIndices,'ROIlessMap':ROIlessMap}
