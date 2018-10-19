@@ -320,7 +320,7 @@ def findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo):
     ROIInfo: dic, contains:
              ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
                            belonging to each ROI. len(ROIMaps) = nROIs.
-             ROIVoxels: list of ROISizes x 1 np.array, indices of the voxels belonging
+             ROIVoxels: list of ROISizes x 1 np.arrays, indices of the voxels belonging
                      to each ROI. These indices refer to the columns of
                      the distance matrix, as well as to the rows of the
                      voxel time series file. len(ROIVoxels) = nROIs.
@@ -338,8 +338,46 @@ def findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo):
        else:
            ROINeighbors = np.concatenate((ROINeighbors,neighbors),axis=0)
     ROINeighbors = np.unique(ROINeighbors,axis=0) # removing dublicates
-    ROIlessNeighbors = findROIlessVoxels(ROINeighbors,ROIInfo)
+    ROIlessNeighbors = findROIlessVoxels(ROINeighbors,ROIInfo) 
+    ROIlessMap = ROIlessNeighbors['ROIlessMap']
+    ROIlessIndices = np.zeros(ROIlessMap.shape[0]) # indices in the list of neighbors
+    for i, voxel in enumerate(ROIlessMap):
+        ROIlessIndices[i] = np.where((voxelCoordinates==voxel).all(axis=1)==1)[0][0] # finding indices in the voxelCoordinates array (indexing assumes that a voxel is present in the voxelCoordinates only once)
+    ROIlessNeighbors = {'ROIlessIndices':ROIlessIndices,'ROIlessMap':ROIlessMap}
     return ROIlessNeighbors
+
+def updateROI(ROIIndex,voxelCoordinates,ROIInfo):
+    """
+    Updates the ROI by adding to it all of its neighbors that don't belong to
+    any ROI yet.
+    
+    Parameters:
+    -----------
+    ROIIndex: int, index of the ROI in the lists of ROIInfo (see below)
+    candidateVoxels: nVoxels x 3 np.array, coordinates (in voxels) of all voxels
+    ROIInfo: dict, contains:
+             ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
+                           belonging to each ROI. len(ROIMaps) = nROIs.
+             ROIVoxels: list of ROISizes x 1 np.arrays, indices of the voxels belonging
+                     to each ROI. These indices refer to the columns of
+                     the distance matrix, as well as to the rows of the
+                     voxel time series file. len(ROIVoxels) = nROIs.
+             ROISizes: nROIs x 1 np.array of ints. Sizes of ROIs defined as
+                     number of voxels in the sphere
+            
+    Returns:
+    --------
+    ROIInfo: dict, input ROIInfo with lists updated with the new voxels of the ROI
+    """
+    ROIlessNeighbors = findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo)
+    ROIMap = ROIInfo['ROIMaps'][ROIIndex]
+    ROIMap = np.concatenate((ROIMap,ROIlessNeighbors['ROIlessMap']),axis=0)
+    ROIVoxels = ROIInfo['ROIVoxels'][ROIIndex]
+    ROIVoxels = np.concatenate((ROIVoxels,ROIlessNeighbors['ROIlessIndices']),axis=0)
+    ROIInfo['ROIMaps'][ROIIndex] = ROIMap
+    ROIInfo['ROIVoxels'][ROIIndex] = ROIVoxels
+    ROIInfo['ROISizes'][ROIIndex] = len(ROIVoxels)
+    return ROIInfo
     
     
 

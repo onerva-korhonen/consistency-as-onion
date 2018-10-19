@@ -10,9 +10,10 @@ import functions
 
 import numpy as np
 
-testDefSphericalROIs = True
+testDefSphericalROIs = False
 testFindROIlessVoxels = True
 testFindROIlessNeighbors = True
+testUpdateROI = True
 
 # testing defSphericalROIs
 if testDefSphericalROIs: 
@@ -141,6 +142,99 @@ if testFindROIlessNeighbors:
     if max(indDif1,indDif2) == 0:
         print 'findROIlessNeighbors: indices of ROIless neighbors OK'
 
+if testUpdateROI:
+    # testcase 1: one small ROI in a small space
+    space = np.zeros((2,2,2))
+    w1, w2, w3 = np.where(space==0)
+    voxels = np.zeros((8,3))
+    for i, (x, y, z) in enumerate(zip(w1,w2,w3)):
+        voxels[i,:] = [x,y,z]
+    ROIMaps = [np.array([[0,0,0]])]
+    ROIVoxels = [np.array([0])]
+    ROIInfo = {'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels,'ROISizes':np.array([1])}
+    
+    trueROIMaps = [np.array([[0,0,0],[1,0,0],[0,1,0],[0,0,1]])]
+    trueROIVoxels = [np.array([0,4,2,1])]
+    
+    testROIInfo = functions.updateROI(0,voxels,ROIInfo)
+    testMaps = testROIInfo['ROIMaps']
+    testROIVoxels = testROIInfo['ROIVoxels']
+    
+    mapCorrect = []
+    indicesCorrect = []
+    
+    for ROI, testROI, ROIVoxel, testROIVoxel in zip(trueROIMaps,testMaps,trueROIVoxels,testROIVoxels):
+        if not (len(ROI) == len(testROI)):
+            mapCorrect.append(False)
+        else:
+            tempCorrect = np.zeros(ROI.shape[0])
+            for i,testVoxel in enumerate(testROI):
+                tempCorrect[i] = np.any((ROI == testVoxel).all(axis=1))
+            mapCorrect.append(all(tempCorrect))
+        if not (len(ROIVoxel) == len(testROIVoxel)):
+            indicesCorrect.append(False)
+        else:
+            tempCorrect = np.zeros(len(ROIVoxel))
+            for i, index in enumerate(testROIVoxel):
+                tempCorrect[i] = np.any(ROIVoxel == index)
+            indicesCorrect.append(all(tempCorrect))
+    
+    if all(mapCorrect):
+        print 'updateROI: testcase 1: ROI map OK'
+        
+    if all(indicesCorrect):
+        print 'updateROI: testcase 1: ROI voxel indices OK'
+        
+    if testROIInfo['ROISizes'] == np.array([4]):
+        print 'updateROI: testcase 1: ROI sizes OK'
+        
+    # testcase 2: two small ROIs in a small space:
+    ROI1 = np.array([[0,0,0]])
+    ROI2 = np.array([[1,0,1]])
+    ROIMaps = [ROI1,ROI2]
+    ROIVoxels = [np.array([0]),np.array([5])]
+    ROIInfo = {'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels,'ROISizes':np.array([1,1])}
+    
+    trueROI1Map = np.array([[0,0,0],[1,0,0],[0,0,1],[0,1,0]])
+    trueROI1Voxels = np.array([0,1,2,4])
+    trueROIMaps = [trueROI1Map,np.array([[1,0,1]])]
+    trueROIVoxels = [trueROI1Voxels,np.array([5])]
+    
+    testROIInfo = functions.updateROI(0,voxels,ROIInfo)
+    testROIMaps = testROIInfo['ROIMaps']
+    testROIVoxels = testROIInfo['ROIVoxels']
+    testROISizes = testROIInfo['ROISizes']
+    
+    mapCorrect = []
+    indicesCorrect = []
+    
+    for ROI, testROI, ROIVoxel, testROIVoxel in zip(trueROIMaps,testMaps,trueROIVoxels,testROIVoxels):
+        if not (len(ROI) == len(testROI)):
+            mapCorrect.append(False)
+        else:
+            tempCorrect = np.zeros(ROI.shape[0])
+            for i,testVoxel in enumerate(testROI):
+                tempCorrect[i] = np.any((ROI == testVoxel).all(axis=1))
+            mapCorrect.append(all(tempCorrect))
+        if not (len(ROIVoxel) == len(testROIVoxel)):
+            indicesCorrect.append(False)
+        else:
+            tempCorrect = np.zeros(len(ROIVoxel))
+            for i, index in enumerate(testROIVoxel):
+                tempCorrect[i] = np.any(ROIVoxel == index)
+            indicesCorrect.append(all(tempCorrect))
+            
+    if all(mapCorrect) and len(testROIMaps) == len(trueROIMaps):
+        print 'updateROI: testcase 2: ROI maps OK'
+        
+    if all(indicesCorrect) and len(testROIVoxels) == len(trueROIVoxels):
+        print 'updateROI: testcase 2: ROI voxel indices OK'
+        
+    if np.all(testROISizes == np.array([7,1])):
+        print 'updateROI: testcase 2: ROI sizes OK'
+    
+    
+    
     
     
 

@@ -7,3 +7,6 @@ A: We don't know beforehand the size of ROIs: voxels not belonging to the analys
 
 Q: Why is the output key of findROIlessVoxels (and findROIlessNeighbors) ROIlessMap in singular, not ROIlessMaps in plural?
 A: There is only one map: the coordinates of all ROIless voxels are on the same array. xMaps type objects (with plural names) are lists of corodinate arrays, e.g. one array per ROI.
+
+Q: Does updateROI return the original ROIInfo modified or a copy of it?
+A: It returns a modified version of the original ROIInfo. This means that the original contents of ROIInfo are lost. If one expects them to be needed for further analysis, they should be saved separately.
