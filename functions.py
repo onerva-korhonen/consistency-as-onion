@@ -370,15 +370,61 @@ def updateROI(ROIIndex,voxelCoordinates,ROIInfo):
     ROIInfo: dict, input ROIInfo with lists updated with the new voxels of the ROI
     """
     ROIlessNeighbors = findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo)
-    ROIMap = ROIInfo['ROIMaps'][ROIIndex]
-    ROIMap = np.concatenate((ROIMap,ROIlessNeighbors['ROIlessMap']),axis=0)
-    ROIVoxels = ROIInfo['ROIVoxels'][ROIIndex]
-    ROIVoxels = np.concatenate((ROIVoxels,ROIlessNeighbors['ROIlessIndices']),axis=0)
-    ROIInfo['ROIMaps'][ROIIndex] = ROIMap
-    ROIInfo['ROIVoxels'][ROIIndex] = ROIVoxels
-    ROIInfo['ROISizes'][ROIIndex] = len(ROIVoxels)
+    if max(ROIlessNeighbors['ROIlessMap'].shape) > 0:
+        ROIMap = ROIInfo['ROIMaps'][ROIIndex]
+        ROIMap = np.concatenate((ROIMap,ROIlessNeighbors['ROIlessMap']),axis=0)
+        ROIVoxels = ROIInfo['ROIVoxels'][ROIIndex]
+        ROIVoxels = np.concatenate((ROIVoxels,ROIlessNeighbors['ROIlessIndices']),axis=0)
+        ROIInfo['ROIMaps'][ROIIndex] = ROIMap
+        ROIInfo['ROIVoxels'][ROIIndex] = ROIVoxels
+        ROIInfo['ROISizes'][ROIIndex] = len(ROIVoxels)
     return ROIInfo
+
+def growROIs(ROICentroids,voxelCoordinates,names=''):
+    """
+    Divides the voxels to ROIs by growing each ROI spherewise by its ROIless
+    neighbors. There is a first-come-first-served principle: if a voxel is neighbor
+    of several ROIs, its added to the first one.
     
+    Parameters:
+    -----------
+    ROICentroids: nROIs x 3 np.array, coordinates of the centroids of the ROIs.
+                  This can be a ROI centroid from an atlas but also any other
+                  (arbitrary) point.
+    voxelCoords: nVoxels x 3 np.array, coordinates of all voxels. Must be
+                 in the same space with ROICentoids. Coordinates must be ordered by ROIs:
+                 first all voxels of ROI 1, then all voxels of ROI 2, etc.
+    names: list of strs, names of the ROIs, can be e.g. the anatomical name associated with
+           the centroid. Default = ''.
+    
+    Returns:
+    --------
+    ROIInfo: dic, contains:
+                  ROICentroids: nROIs x 3 np.array, coordinates of the centroids
+                  ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
+                           belonging to each ROI. len(ROIMaps) = nROIs.
+                  ROIVoxels: list of ROISizes x 1 np.array, indices of the voxels belonging
+                             to each ROI. These indices refer to the columns of
+                             the distance matrix, as well as to the rows of the
+                             voxel time series file. len(ROIVoxels) = nROIs.
+                  ROISizes: nROIs x 1 np.array of ints. Sizes of ROIs defined as
+                            number of voxels in the sphere
+                  ROINames: list of strs, name of the spherical ROI. If no name is given as
+                            input parameter for a ROI, this is set to ''. 
+                            len(ROINames) = NROIs.
+    """
+    nROIs = len(ROICentroids)
+    ROIInfo = {'ROICentroids':ROICentroids,'ROIMaps':ROICentroids,'ROISizes':np.ones(nROIs),'ROINames':names}
+    ROIVoxels = []
+    for centroid in ROICentroids:
+        ROIVoxels.append(np.where((voxelCoordinates==centroid).all(axis=1)==1)[0]) # finding indices of centroids in voxelCoordinates
+    ROIInfo['ROIVoxels'] = ROIVoxels
+    
+    while len(findROIlessVoxels(voxelCoordinates,ROIInfo)['ROIlessIndices'])>0:
+        for ROIIndex in range(nROIs):
+            ROIInfo = updateROI(ROIIndex,voxelCoordinates,ROIInfo)
+        
+    return ROIInfo
     
 
 

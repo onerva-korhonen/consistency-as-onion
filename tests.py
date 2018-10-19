@@ -14,6 +14,7 @@ testDefSphericalROIs = False
 testFindROIlessVoxels = True
 testFindROIlessNeighbors = True
 testUpdateROI = True
+testGrowROIs = True
 
 # testing defSphericalROIs
 if testDefSphericalROIs: 
@@ -157,13 +158,13 @@ if testUpdateROI:
     trueROIVoxels = [np.array([0,4,2,1])]
     
     testROIInfo = functions.updateROI(0,voxels,ROIInfo)
-    testMaps = testROIInfo['ROIMaps']
+    testROIMaps = testROIInfo['ROIMaps']
     testROIVoxels = testROIInfo['ROIVoxels']
     
     mapCorrect = []
     indicesCorrect = []
     
-    for ROI, testROI, ROIVoxel, testROIVoxel in zip(trueROIMaps,testMaps,trueROIVoxels,testROIVoxels):
+    for ROI, testROI, ROIVoxel, testROIVoxel in zip(trueROIMaps,testROIMaps,trueROIVoxels,testROIVoxels):
         if not (len(ROI) == len(testROI)):
             mapCorrect.append(False)
         else:
@@ -208,7 +209,7 @@ if testUpdateROI:
     mapCorrect = []
     indicesCorrect = []
     
-    for ROI, testROI, ROIVoxel, testROIVoxel in zip(trueROIMaps,testMaps,trueROIVoxels,testROIVoxels):
+    for ROI, testROI, ROIVoxel, testROIVoxel in zip(trueROIMaps,testROIMaps,trueROIVoxels,testROIVoxels):
         if not (len(ROI) == len(testROI)):
             mapCorrect.append(False)
         else:
@@ -232,6 +233,59 @@ if testUpdateROI:
         
     if np.all(testROISizes == np.array([7,1])):
         print 'updateROI: testcase 2: ROI sizes OK'
+        
+if testGrowROIs:
+    # testcase 1: two small ROIs in a small space
+    space = np.zeros((2,2,2))
+    w1, w2, w3 = np.where(space==0)
+    voxels = np.zeros((8,3))
+    for i, (x, y, z) in enumerate(zip(w1,w2,w3)):
+        voxels[i,:] = [x,y,z]
+    
+    ROI1 = np.array([[0,0,0]])
+    ROI2 = np.array([[1,0,1]])
+    ROIMaps = [ROI1,ROI2]
+    
+    trueROI1 = np.array([[0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,1,0],[0,1,1]])
+    trueROI2 = np.array([[1,0,1],[1,1,1]])
+    trueROI1Voxels = np.array([0,1,2,4,6,3])
+    trueROI2Voxels = np.array([5,7])
+    
+    trueROIMaps = [trueROI1,trueROI2]
+    trueROIVoxels = [trueROI1Voxels,trueROI2Voxels]
+    
+    testROIInfo = functions.growROIs(ROIMaps,voxels,names='')
+    testROIMaps = testROIInfo['ROIMaps']
+    testROIVoxels = testROIInfo['ROIVoxels']
+    testROISizes = testROIInfo['ROISizes']
+    
+    mapCorrect = []
+    indicesCorrect = []
+    
+    for ROI, testROI, ROIVoxel, testROIVoxel in zip(trueROIMaps,testROIMaps,trueROIVoxels,testROIVoxels):
+        if not (len(ROI) == len(testROI)):
+            mapCorrect.append(False)
+        else:
+            tempCorrect = np.zeros(ROI.shape[0])
+            for i,testVoxel in enumerate(testROI):
+                tempCorrect[i] = np.any((ROI == testVoxel).all(axis=1))
+            mapCorrect.append(all(tempCorrect))
+        if not (len(ROIVoxel) == len(testROIVoxel)):
+            indicesCorrect.append(False)
+        else:
+            tempCorrect = np.zeros(len(ROIVoxel))
+            for i, index in enumerate(testROIVoxel):
+                tempCorrect[i] = np.any(ROIVoxel == index)
+            indicesCorrect.append(all(tempCorrect))
+            
+    if all(mapCorrect) and len(testROIMaps) == len(trueROIMaps):
+        print 'growROIs: ROI maps OK'
+        
+    if all(indicesCorrect) and len(testROIVoxels) == len(trueROIVoxels):
+        print 'growROI: ROI voxel indices OK'
+        
+    if np.all(testROISizes == np.array([6,2])):
+        print 'growROI: ROI sizes OK'
     
     
     
