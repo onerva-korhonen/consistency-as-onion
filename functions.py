@@ -426,6 +426,14 @@ def growROIs(ROICentroids,voxelCoordinates,names=''):
         
     return ROIInfo
     
+def createNii(ROIInfo):
+    """
+    Based on the given ROIInfo, creates a NIFTI file (in .nii format) and saves 
+    it to a given path.
+    
+    Parameters:
+    -----------
+    
 
 
    
