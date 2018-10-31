@@ -9,6 +9,7 @@ a frontend script or interactively.
 """
 import numpy as np
 import cPickle as pickle
+import nibabel as nib
 
 from scipy import io
 
@@ -294,6 +295,8 @@ def findROIlessVoxels(voxelCoordinates,ROIInfo):
     """
     ROIMaps = ROIInfo['ROIMaps']
     for i, ROI in enumerate(ROIMaps):
+        if len(ROI.shape) == 1:
+            ROI = np.array([ROI]) # adding an extra dimension to enable concatenation
         if i == 0:
             inROIVoxels = ROI
         else:
@@ -331,18 +334,25 @@ def findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo):
                       ROIlessMap: NNeighbors x 3 np.array, coordinates of ROIless neighbor voxels
     """
     ROIMap = ROIInfo['ROIMaps'][ROIIndex]
+    if len(ROIMap.shape) == 1:
+        ROIMap = np.array([ROIMap]) # adding an outermost dimension to enable proper indexin later on
     for i, voxel in enumerate(ROIMap):
-       neighbors = findNeighbors(voxel,allVoxels=voxelCoordinates)
-       if i == 0:
-           ROINeighbors = neighbors
-       else:
-           ROINeighbors = np.concatenate((ROINeighbors,neighbors),axis=0)
-    ROINeighbors = np.unique(ROINeighbors,axis=0) # removing dublicates
-    ROIlessNeighbors = findROIlessVoxels(ROINeighbors,ROIInfo) 
-    ROIlessMap = ROIlessNeighbors['ROIlessMap']
-    ROIlessIndices = np.zeros(ROIlessMap.shape[0]) # indices in the list of neighbors
-    for i, voxel in enumerate(ROIlessMap):
-        ROIlessIndices[i] = np.where((voxelCoordinates==voxel).all(axis=1)==1)[0][0] # finding indices in the voxelCoordinates array (indexing assumes that a voxel is present in the voxelCoordinates only once)
+        neighbors = findNeighbors(voxel,allVoxels=voxelCoordinates)
+        if i == 0:
+            ROINeighbors = neighbors
+        else:
+            ROINeighbors = np.concatenate((ROINeighbors,neighbors),axis=0)
+    if len(ROINeighbors) > 0:
+        #print 'Found ' + str(len(ROINeighbors)) + 'ROIless neighbors'
+        ROINeighbors = np.unique(ROINeighbors,axis=0) # removing dublicates
+        ROIlessNeighbors = findROIlessVoxels(ROINeighbors,ROIInfo) 
+        ROIlessMap = ROIlessNeighbors['ROIlessMap']
+        ROIlessIndices = np.zeros(ROIlessMap.shape[0]) # indices in the list of neighbors
+        for i, voxel in enumerate(ROIlessMap):
+            ROIlessIndices[i] = np.where((voxelCoordinates==voxel).all(axis=1)==1)[0][0] # finding indices in the voxelCoordinates array (indexing assumes that a voxel is present in the voxelCoordinates only once)
+    else:
+        ROIlessMap = np.array([])
+        ROIlessIndices = np.array([])
     ROIlessNeighbors = {'ROIlessIndices':ROIlessIndices,'ROIlessMap':ROIlessMap}
     return ROIlessNeighbors
 
@@ -372,6 +382,8 @@ def updateROI(ROIIndex,voxelCoordinates,ROIInfo):
     ROIlessNeighbors = findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo)
     if max(ROIlessNeighbors['ROIlessMap'].shape) > 0:
         ROIMap = ROIInfo['ROIMaps'][ROIIndex]
+        if len(ROIMap.shape) == 1: # adding an outermost dimension for successful concatenation later on
+            ROIMap = np.array([ROIMap])
         ROIMap = np.concatenate((ROIMap,ROIlessNeighbors['ROIlessMap']),axis=0)
         ROIVoxels = ROIInfo['ROIVoxels'][ROIIndex]
         ROIVoxels = np.concatenate((ROIVoxels,ROIlessNeighbors['ROIlessIndices']),axis=0)
@@ -384,7 +396,8 @@ def growROIs(ROICentroids,voxelCoordinates,names=''):
     """
     Divides the voxels to ROIs by growing each ROI spherewise by its ROIless
     neighbors. There is a first-come-first-served principle: if a voxel is neighbor
-    of several ROIs, its added to the first one.
+    of several ROIs, its added to the first one. Voxels that have no neighbors
+    are excluded from the new ROI map.
     
     Parameters:
     -----------
@@ -413,26 +426,68 @@ def growROIs(ROICentroids,voxelCoordinates,names=''):
                             input parameter for a ROI, this is set to ''. 
                             len(ROINames) = NROIs.
     """
+    if not isinstance(ROICentroids,list):
+        ROICentroids = [np.array(centroid) for centroid in ROICentroids.tolist()] # ugly hack for ensuring that ROIInfo['ROIMaps'] is a list of arrays as expected later on
     nROIs = len(ROICentroids)
-    ROIInfo = {'ROICentroids':ROICentroids,'ROIMaps':ROICentroids,'ROISizes':np.ones(nROIs),'ROINames':names}
+    ROIMaps = [centroid for centroid in ROICentroids]
+    ROIInfo = {'ROICentroids':ROICentroids,'ROIMaps':ROIMaps,'ROISizes':np.ones(nROIs),'ROINames':names}
     ROIVoxels = []
     for centroid in ROICentroids:
         ROIVoxels.append(np.where((voxelCoordinates==centroid).all(axis=1)==1)[0]) # finding indices of centroids in voxelCoordinates
     ROIInfo['ROIVoxels'] = ROIVoxels
     
-    while len(findROIlessVoxels(voxelCoordinates,ROIInfo)['ROIlessIndices'])>0:
+    nROIless = len(findROIlessVoxels(voxelCoordinates,ROIInfo)['ROIlessIndices'])
+    
+    while nROIless>0:
+        print str(nROIless) + ' ROIless voxels found'
+        nROIlessPrevious = nROIless
+        nROIless = len(findROIlessVoxels(voxelCoordinates,ROIInfo)['ROIlessIndices'])
+
+        if nROIless == nROIlessPrevious: # handling the case where the mask contains neighborless voxels that can't be added to any ROI
+            ROIlessVoxels = findROIlessVoxels(voxelCoordinates,ROIInfo)['ROIlessMap']
+            noNeighbors = np.zeros(nROIless)
+            for i, voxel in enumerate(ROIlessVoxels):
+                neighbors = findNeighbors(voxel,allVoxels=voxelCoordinates)
+                if len(neighbors) == 0:
+                    noNeighbors[i] = True
+            if all(noNeighbors):
+                break
+    
         for ROIIndex in range(nROIs):
             ROIInfo = updateROI(ROIIndex,voxelCoordinates,ROIInfo)
-        
     return ROIInfo
     
-def createNii(ROIInfo):
+def createNii(ROIInfo, savePath, imgSize=[45,54,45], affine=np.eye(4)):
     """
-    Based on the given ROIInfo, creates a NIFTI file (in .nii format) and saves 
-    it to a given path.
+    Based on the given ROIInfo, creates a ROI mask (in .nii format) and saves 
+    it to a given path. To construct the image of the NIFTI file, a 3D
+    matrix of zeros is created and values of voxels belonging to a ROI are set to
+    the index of this ROI.
     
     Parameters:
     -----------
+    ROIInfo: dict, contains:
+                   ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
+                           belonging to each ROI. len(ROIMaps) = nROIs.
+    savePath: str, path for saving the mask.
+    imgSize: list of ints, dimensions of the image in the nii file. If saving a
+             ROI mask created based on existing mask, set to the dimensions of the
+             existing mask. (Default: [45,54,45]; the dimensions of the 4mm 
+             Brainnetome mask)
+    affine: np.array, an image coordination transformation (affine) matrix. (Default:
+            an identity matrix)
+             
+    Returns:
+    --------
+    No direct output, saves the mask in NIFTI format to the given path
+    """
+    data = np.zeros(imgSize)
+    ROIMaps = ROIInfo['ROIMaps']
+    for i, ROI in enumerate(ROIMaps):
+        for voxel in ROI:        
+            data[voxel] = ROI
+    img = nib.Nifti1Image(data,affine)     
+    nib.save(img,savePath)
     
 
 
