@@ -35,11 +35,11 @@ def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False):
     infoData = io.loadmat(ROIInfoFile)
     ROIInfo = infoData['rois'][0]
     nROIs = ROIInfo.shape[0] # number of ROIs
-    ROICentroids = np.zeros((nROIs,3))
+    ROICentroids = np.zeros((nROIs,3),dtype=int)
     ROIMNICentroids = np.zeros((nROIs,3))
     voxelCoordinates = []
     for i, ROI in enumerate(ROIInfo):
-        centroid = ROI['centroid'][0]
+        centroid = np.array(ROI['centroid'][0]) - np.array([1,1,1]) # transforming centroids from dbl to int, correcting for the indexing difference between Matlab and Spyder
         if fixCentroids:
             ROIMap = ROI['map']
             distances = np.zeros(ROIMap.shape[0])
@@ -49,7 +49,7 @@ def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False):
         ROICentroids[i,:] = centroid
         ROIMNICentroids[i,:] = ROI['centroidMNI'][0]
         if readVoxels:
-            voxelCoordinates.extend(list(ROI['map']))
+            voxelCoordinates.extend(list(ROI['map'] - np.ones(ROI['map'].shape)))
     voxelCoordinates = np.array(voxelCoordinates)
     return ROICentroids, ROIMNICentroids, voxelCoordinates
     
@@ -481,11 +481,17 @@ def createNii(ROIInfo, savePath, imgSize=[45,54,45], affine=np.eye(4)):
     --------
     No direct output, saves the mask in NIFTI format to the given path
     """
+    #import pdb; pdb.set_trace()
     data = np.zeros(imgSize)
     ROIMaps = ROIInfo['ROIMaps']
     for i, ROI in enumerate(ROIMaps):
-        for voxel in ROI:        
-            data[voxel] = ROI
+#        if i == 177:
+#            import pdb; pdb.set_trace()
+        if len(ROI.shape) == 1:
+            data[ROI[0],ROI[1],ROI[2]] = i + 1
+        else:
+            for voxel in ROI:   
+                data[voxel[0],voxel[1],voxel[2]] = i + 1
     img = nib.Nifti1Image(data,affine)     
     nib.save(img,savePath)
     
