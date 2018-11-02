@@ -369,10 +369,6 @@ def findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo):
     ROIInfo: dic, contains:
              ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
                            belonging to each ROI. len(ROIMaps) = nROIs.
-             ROIVoxels: list of ROISizes x 1 np.arrays, indices of the voxels belonging
-                     to each ROI. These indices refer to the columns of
-                     the distance matrix, as well as to the rows of the
-                     voxel time series file. len(ROIVoxels) = nROIs.
     Returns:
     --------
     ROIlessNeighbors: dic, contains:
@@ -458,7 +454,7 @@ def growROIs(ROICentroids,voxelCoordinates,names=''):
     
     Returns:
     --------
-    ROIInfo: dic, contains:
+    ROIInfo: dict, contains:
                   ROICentroids: nROIs x 3 np.array, coordinates of the centroids
                   ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
                            belonging to each ROI. len(ROIMaps) = nROIs.
@@ -485,6 +481,10 @@ def growROIs(ROICentroids,voxelCoordinates,names=''):
     nROIless = len(findROIlessVoxels(voxelCoordinates,ROIInfo)['ROIlessIndices'])
     
     while nROIless>0:
+        
+        for ROIIndex in range(nROIs):
+            ROIInfo = updateROI(ROIIndex,voxelCoordinates,ROIInfo)
+            
         print str(nROIless) + ' ROIless voxels found'
         nROIlessPrevious = nROIless
         nROIless = len(findROIlessVoxels(voxelCoordinates,ROIInfo)['ROIlessIndices'])
@@ -498,10 +498,65 @@ def growROIs(ROICentroids,voxelCoordinates,names=''):
                     noNeighbors[i] = True
             if all(noNeighbors):
                 break
-    
-        for ROIIndex in range(nROIs):
-            ROIInfo = updateROI(ROIIndex,voxelCoordinates,ROIInfo)
+            
     return ROIInfo
+
+    
+def growOptimizedROIs(cfg):
+    """
+    Starting from given centroids, grows a set of ROIs optimized in terms of
+    spatial consistency. Optimization is based on a priority que system: at each
+    step, the correlation is calculated between ROI centroids and ROIless neighbor
+    voxels of ROIs, and the voxel with the highest correlation is added to the ROI
+    in question.
+    
+    Parameters:
+    -----------
+    cfg: dict, contains:
+         ROICentroids: nROIs x 3 np.array, coordinates of the centroids of the ROIs.
+                  This can be a ROI centroid from an atlas but also any other
+                  (arbitrary) point.
+         voxelCoordinates: nVoxels x 3 np.array, coordinates of all voxels. Must be
+                  in the same space with ROICentoids. Coordinates must be ordered by ROIs:
+                  first all voxels of ROI 1, then all voxels of ROI 2, etc.
+         names: list of strs, names of the ROIs, can be e.g. the anatomical name associated with
+                  the centroid. Default = ''.
+         allVoxelTs: nVoxels x nTime np.array, time series of all voxels
+    
+    Returns:
+    --------
+    ROIInfo: dict, contains:
+                  ROICentroids: nROIs x 3 np.array, coordinates of the centroids
+                  ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
+                           belonging to each ROI. len(ROIMaps) = nROIs.
+                  ROIVoxels: list of ROISizes x 1 np.array, indices of the voxels belonging
+                             to each ROI. These indices refer to the columns of
+                             the distance matrix, as well as to the rows of the
+                             voxel time series file. len(ROIVoxels) = nROIs.
+                  ROISizes: nROIs x 1 np.array of ints. Sizes of ROIs defined as
+                            number of voxels in the sphere
+                  ROINames: list of strs, name of the spherical ROI. If no name is given as
+                            input parameter for a ROI, this is set to ''. 
+                            len(ROINames) = NROIs.
+    """
+    ROICentroids = cfg['ROICentroids']
+    voxelCoordinates = cfg['voxelCoordinatess']
+    allVoxelTs = cfg['allVoxelTs']
+    
+    nROIs = len(ROICentroids)
+    nTime = allVoxelTs.shape[1]
+    
+    ROIMaps = [[centroid] for centroid in ROICentroids]
+    ROIIndices = [[np.where((voxelCoordinates==centroid).all(axis=1)==1)[0][0]] for centroid in ROICentroids]
+    priorityQues = [findROIlessNeighbors(i,voxelCoordinates,{'ROIMaps':ROIMaps}) for i in range(nROIs)]
+    centroidTs = np.zeros((nROIs,nTime))
+    for i, ROIIndex in enumerate(ROIIndices):
+        centroidTs[i,:] = allVoxelTs[ROIIndex[0],:]
+    
+    nROIless = len(findROIlessVoxels(voxelCoordinates,ROIInfo)['ROIlessIndices'])
+    
+    while nROIless>0:
+        print 'sgjaö'
     
     
     
