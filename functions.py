@@ -12,6 +12,7 @@ import cPickle as pickle
 import nibabel as nib
 
 from scipy import io
+from concurrent.futures import ProcessPoolExecutor as Pool
 
 
 def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False):
@@ -31,6 +32,7 @@ def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False):
     ROICentroids: nROIs x 3 np.array, coordinates (in voxels) of the centroids of the ROIs
     ROIMNICentroids: nROIs x 3 np.array, coordinates (in mm) of the centroids of the ROIs
     voxelCoordinates: nVoxels x 3 np.array, coordinates (in voxels) of all voxels
+    ROIMaps: list of ROISize x 3 np.arrays, coordinates (in voxels) of voxels belonging to each ROI
     """
     infoData = io.loadmat(ROIInfoFile)
     ROIInfo = infoData['rois'][0]
@@ -38,20 +40,22 @@ def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False):
     ROICentroids = np.zeros((nROIs,3),dtype=int)
     ROIMNICentroids = np.zeros((nROIs,3))
     voxelCoordinates = []
+    ROIMaps = []
     for i, ROI in enumerate(ROIInfo):
-        centroid = np.array(ROI['centroid'][0]) - np.array([1,1,1]) # transforming centroids from dbl to int, correcting for the indexing difference between Matlab and Spyder
+        centroid = np.array(ROI['centroid'][0]) - np.array([1,1,1]) # correcting for the indexing difference between Matlab and Spyder
         if fixCentroids:
             ROIMap = ROI['map']
             distances = np.zeros(ROIMap.shape[0])
             for j, voxel in enumerate(ROIMap):
-                distances[j] = np.sqrt(np.sum((voxel-centroid)**2,axis=1))
-            centroid = ROIMap[np.where(distances==np.amin(distances))]
+                distances[j] = np.sqrt(np.sum((voxel-centroid)**2))
+            centroid = ROIMap[np.where(distances==np.amin(distances))[0][0]] # if multiple voxels are at the same distance from the centroid, the first one is picked
         ROICentroids[i,:] = centroid
         ROIMNICentroids[i,:] = ROI['centroidMNI'][0]
         if readVoxels:
-            voxelCoordinates.extend(list(ROI['map'] - np.ones(ROI['map'].shape)))
+            voxelCoordinates.extend(list(ROI['map'] - np.ones(ROI['map'].shape,dtype=int)))
+            ROIMaps.append(ROI['map']-np.ones(ROI['map'].shape,dtype=int))
     voxelCoordinates = np.array(voxelCoordinates)
-    return ROICentroids, ROIMNICentroids, voxelCoordinates
+    return ROICentroids, ROIMNICentroids, voxelCoordinates, ROIMaps
     
 def getDistanceMatrix(ROICentroids, voxelCoords, save=False, savePath=''):
     """
@@ -90,7 +94,7 @@ def getDistanceMatrix(ROICentroids, voxelCoords, save=False, savePath=''):
             pickle.dump(distanceData, f, -1)
     return distanceMatrix
     
-def calculateSpatialConsistency(voxelIndices, allVoxelTs, type='pearson c', fTransform=False):
+def calculateSpatialConsistency(params):
     """
     Calculates the spatial consistency of a chunk of voxels. By default,
     spatial consistency is defined as the mean Pearson correlation coefficient
@@ -98,16 +102,20 @@ def calculateSpatialConsistency(voxelIndices, allVoxelTs, type='pearson c', fTra
     
     Parameters:
     -----------
-    voxelIdices: np.array, indices of voxels; these indices should refer to voxels' 
-            locations in the file containing voxel time series; note that the chunk
-            must contain at least one voxel
-    allVoxelTs: structured np.array with a field name 'roi_voxel_ts' (and possible additional 
-            fields), this field contains voxel time series
-    type: str, definition of spatial consistency to be used; default:
-          'pearson c' (mean Pearson correlation coefficient), other options:
-          TODO: add other consistency options
-    fTransform: bool, are the correlations Fisher f transformed before averaging
-                when type = 'pearson c' (default=False)
+    params: tuple, containing:
+    
+        cfg: dict, containing:
+            allVoxelTs: structured np.array with a field name 'roi_voxel_ts' (and possible additional 
+                    fields), this field contains voxel time series
+            consistencyType: str, definition of spatial consistency to be used; default:
+                  'pearson c' (mean Pearson correlation coefficient), other options:
+                  TODO: add other consistency options
+            fTransform: bool, are the correlations Fisher f transformed before averaging
+                        when consistencyType = 'pearson c' (default=False)
+                
+        voxelIdices: np.array, indices of voxels; these indices should refer to voxels' 
+                locations in the file containing voxel time series; note that the chunk
+                must contain at least one voxel
           
     Returns:
     --------
@@ -125,7 +133,7 @@ def calculateSpatialConsistency(voxelIndices, allVoxelTs, type='pearson c', fTra
 #        else:
 #            allVoxelTs = io.loadmat(voxelTsFilePath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
 #            voxelTs = allVoxelTs[voxelIndices,:]
-#            if type == 'pearson c':
+#            if consistencyType == 'pearson c':
 #                correlations = np.corrcoef(voxelTs)
 #                correlations = correlations[np.tril_indices(voxelTs.shape[0],k=-1)] # keeping only the lower triangle, diagonal is discarded
 #                if fTransform:
@@ -138,6 +146,12 @@ def calculateSpatialConsistency(voxelIndices, allVoxelTs, type='pearson c', fTra
 #        return spatialConsistency
 #    except ValueError as error:
 #        print error.message
+    cfg = params[0]
+    allVoxelTs = cfg['allVoxelTs']
+    consistencyType = cfg['consistencyType']
+    fTransform = cfg['fTransform']
+    voxelIndices = params[1]
+    
     if np.amax(voxelIndices.shape) == 0:
         spatialConsistency = 0
         print "Detected an empty ROI, set consistency to 0."
@@ -145,7 +159,7 @@ def calculateSpatialConsistency(voxelIndices, allVoxelTs, type='pearson c', fTra
         spatialConsistency = 1. # a single voxel is always fully consistent
     else: 
         voxelTs = allVoxelTs[voxelIndices,:]
-        if type == 'pearson c':
+        if consistencyType == 'pearson c':
             correlations = np.corrcoef(voxelTs)
             correlations = correlations[np.tril_indices(voxelTs.shape[0],k=-1)] # keeping only the lower triangle, diagonal is discarded
             if fTransform:
@@ -158,6 +172,38 @@ def calculateSpatialConsistency(voxelIndices, allVoxelTs, type='pearson c', fTra
     if np.isnan(spatialConsistency):
         print 'nan detected!'
     return spatialConsistency
+    
+def calculateSpatialConsistencyInParallel(voxelIndices,allVoxelTs,consistencyType='pearson c', fTransform=False, nCPUs=5):
+    """
+    A wrapper function for calculating the spatial consistency in parallel across
+    ROIs.
+    
+    Parameters:
+    -----------
+    voxelIndices: list of np.arrays, each array containing indices of voxels of one ROI; 
+               these indices should refer to voxels' 
+               locations in the file containing voxel time series; note that the chunk
+               must contain at least one voxel
+    allVoxelTs: structured np.array with a field name 'roi_voxel_ts' (and possible additional 
+                fields), this field contains voxel time series
+    consistencyType: str, definition of spatial consistency to be used; default:
+          'pearson c' (mean Pearson correlation coefficient), other options:
+    fTransform: bool, are the correlations Fisher f transformed before averaging
+                when consistencyType = 'pearson c' (default=False)
+    nCPUs = int, number of CPUs to be used for the parallel computing (default = 5)
+    
+    
+    Returns:
+    --------
+    spatialConsistencies: list of doubles, spatial consistencies of the ROIs defined
+                          by voxelIndices
+    """
+    cfg = {'allVoxelTs':allVoxelTs,'consistencyType':consistencyType,'fTransform':fTransform}
+    paramSpace = [(cfg,voxelInd) for voxelInd in voxelIndices]
+    pool = Pool(max_workers = nCPUs)
+    spatialConsistencies = list(pool.map(calculateSpatialConsistency,paramSpace,chunksize=1))
+    return spatialConsistencies
+    
         
 def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names='', distanceMatrixPath='', save=False, savePath=''):
     """
@@ -456,6 +502,9 @@ def growROIs(ROICentroids,voxelCoordinates,names=''):
         for ROIIndex in range(nROIs):
             ROIInfo = updateROI(ROIIndex,voxelCoordinates,ROIInfo)
     return ROIInfo
+    
+    
+    
     
 def createNii(ROIInfo, savePath, imgSize=[45,54,45], affine=np.eye(4)):
     """

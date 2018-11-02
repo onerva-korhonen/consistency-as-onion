@@ -16,8 +16,13 @@ testSubjectFolders = ['/media/onerva/KINGSTON/test-data/010/',
 ROIVoxelTsFileName = 'roi_voxel_ts_all_rois4mm_FWHM0.mat'
 ROIVoxelTsInfoFileName = 'roi_voxel_ts_all_rois4mm_WHM0_info.mat'
 
+ROIInfoFile = '/media/onerva/KINGSTON/test-data/group_roi_mask-30-4mm_with_subcortl_and_cerebellum.mat'
+
 # Paths for saving
 
 distanceMatrixPath = '/media/onerva/KINGSTON/test-data/outcome/distance-matrix-brainnetome-4mm.pkl'
 consistencyVsRadiusPath = '/media/onerva/KINGSTON/test-data/outcome/consistency-over-radia-brainnetome-4mm-test.pkl'
+
+# Parallelization
+nCPUs = 5
 

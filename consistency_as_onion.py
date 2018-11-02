@@ -31,7 +31,7 @@ if not visualizeOnly:
     radiusRange = np.arange(1,20,2)
     nRadia = len(radiusRange)
     
-    centroids, _, voxelCoords = functions.readROICentroids(roiInfoFile,readVoxels=True)
+    centroids, _, voxelCoords, _ = functions.readROICentroids(roiInfoFile,readVoxels=True)
     nROIs = len(centroids)
     
     consistencies = np.zeros((nSubjects,nRadia,nROIs))
@@ -51,7 +51,9 @@ if not visualizeOnly:
         voxelIndices = roiInfo['ROIVoxels']
         for i, subject in enumerate(allVoxelTs):
             for k, ROI in enumerate(voxelIndices):
-                consistency = functions.calculateSpatialConsistency(ROI,subject)
+                cfg = {'allROITs':subject}
+                params = (cfg,ROI)
+                consistency = functions.calculateSpatialConsistency(params)
                 consistencies[i,j,k] = consistency
                 
     consistencyData = {'radia':radiusRange,'subjects':subjectFolders,'consistencies':consistencies}   
