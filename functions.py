@@ -44,7 +44,7 @@ def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False):
     for i, ROI in enumerate(ROIInfo):
         centroid = np.array(ROI['centroid'][0]) - np.array([1,1,1]) # correcting for the indexing difference between Matlab and Spyder
         if fixCentroids:
-            ROIMap = ROI['map']
+            ROIMap = ROI['map'] - np.ones(ROI['map'].shape,dtype=int)
             distances = np.zeros(ROIMap.shape[0])
             for j, voxel in enumerate(ROIMap):
                 distances[j] = np.sqrt(np.sum((voxel-centroid)**2))
@@ -203,7 +203,7 @@ def calculateSpatialConsistencyInParallel(voxelIndices,allVoxelTs,consistencyTyp
     pool = Pool(max_workers = nCPUs)
     spatialConsistencies = list(pool.map(calculateSpatialConsistency,paramSpace,chunksize=1))
     return spatialConsistencies
-    
+     
         
 def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names='', distanceMatrixPath='', save=False, savePath=''):
     """
@@ -377,7 +377,7 @@ def findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo):
     """
     ROIMap = ROIInfo['ROIMaps'][ROIIndex]
     if len(ROIMap.shape) == 1:
-        ROIMap = np.array([ROIMap]) # adding an outermost dimension to enable proper indexin later on
+        ROIMap = np.array([ROIMap]) # adding an outermost dimension to enable proper indexing later on
     for i, voxel in enumerate(ROIMap):
         neighbors = findNeighbors(voxel,allVoxels=voxelCoordinates)
         if i == 0:
@@ -389,7 +389,7 @@ def findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo):
         ROINeighbors = np.unique(ROINeighbors,axis=0) # removing dublicates
         ROIlessNeighbors = findROIlessVoxels(ROINeighbors,ROIInfo) 
         ROIlessMap = ROIlessNeighbors['ROIlessMap']
-        ROIlessIndices = np.zeros(ROIlessMap.shape[0]) # indices in the list of neighbors
+        ROIlessIndices = np.zeros(ROIlessMap.shape[0],dtype=int) # indices in the list of neighbors
         for i, voxel in enumerate(ROIlessMap):
             ROIlessIndices[i] = np.where((voxelCoordinates==voxel).all(axis=1)==1)[0][0] # finding indices in the voxelCoordinates array (indexing assumes that a voxel is present in the voxelCoordinates only once)
     else:
@@ -540,23 +540,60 @@ def growOptimizedROIs(cfg):
                             len(ROINames) = NROIs.
     """
     ROICentroids = cfg['ROICentroids']
-    voxelCoordinates = cfg['voxelCoordinatess']
+    voxelCoordinates = cfg['voxelCoordinates']
     allVoxelTs = cfg['allVoxelTs']
     
     nROIs = len(ROICentroids)
     nTime = allVoxelTs.shape[1]
     
-    ROIMaps = [[centroid] for centroid in ROICentroids]
-    ROIIndices = [[np.where((voxelCoordinates==centroid).all(axis=1)==1)[0][0]] for centroid in ROICentroids]
-    priorityQues = [findROIlessNeighbors(i,voxelCoordinates,{'ROIMaps':ROIMaps}) for i in range(nROIs)]
+    ROIMaps = [np.array(centroid) for centroid in ROICentroids] # at the moment, ROIMaps and ROIVoxels are lists of lists since we don't know how many voxels there will be per ROI
+    ROIVoxels = [np.array(np.where((voxelCoordinates==centroid).all(axis=1)==1)[0]) for centroid in ROICentroids]
+#    ROIVoxels = []
+#    for i, centroid in enumerate(ROICentroids):
+#        print i
+#        if i == 7:
+#            import pdb; pdb.set_trace()
+#        ROIVoxels.append([np.where((voxelCoordinates==centroid).all(axis=1)==1)[0][0]])
+    priorityQues = [findROIlessNeighbors(i,voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'] for i in range(nROIs)]
     centroidTs = np.zeros((nROIs,nTime))
-    for i, ROIIndex in enumerate(ROIIndices):
+    for i, ROIIndex in enumerate(ROIVoxels):
         centroidTs[i,:] = allVoxelTs[ROIIndex[0],:]
+    priorityMeasures = []
+    for priorityQue, centroid in zip(priorityQues, centroidTs):
+        priorityMeasure = [np.corrcoef(centroid,allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQue]
+        priorityOrder = np.argsort(priorityMeasure)
+        priorityQue = priorityQue[priorityOrder]
+        
     
-    nROIless = len(findROIlessVoxels(voxelCoordinates,ROIInfo)['ROIlessIndices'])
+    nROIless = len(findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'])
     
     while nROIless>0:
-        print 'sgjaö'
+        
+        
+        
+        
+        
+        
+        
+        nROIlessPrevious = nROIless
+        nROIless = len(findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'])
+        
+        if nROIless == nROIlessPrevious: # handling the case where the mask contains neighborless voxels that can't be added to any ROI
+            ROIlessVoxels = findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessMap']
+            noNeighbors = np.zeros(nROIless)
+            for i, voxel in enumerate(ROIlessVoxels):
+                neighbors = findNeighbors(voxel,allVoxels=voxelCoordinates)
+                if len(neighbors) == 0:
+                    noNeighbors[i] = True
+            if all(noNeighbors):
+                break
+     # TODO: check if the following lines are actually needed       
+#    ROIMaps = [np.array(ROIMap) for ROIMap in ROIMaps] # transferring ROIMaps and ROIVoxels to lists of arrays when the final sizes are known
+#    ROIVoxels = [np.array(ROIVoxel) for ROIVoxel in ROIVoxels]
+#    ROISizes = np.array([ROIMap.shape[0] for ROIMap in ROIMaps])
+            
+    ROIInfo = {'ROICentroids':ROICentroids,'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels,'ROISizes':ROISizes,'ROINames':cfg['names']}
+    return ROIInfo
     
     
     
