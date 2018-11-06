@@ -372,7 +372,7 @@ def findROIlessNeighbors(ROIIndex,voxelCoordinates,ROIInfo):
     Returns:
     --------
     ROIlessNeighbors: dic, contains:
-                      ROIlessIndices: list, indices of ROIless neighbor voxels in voxelCoordinates
+                      ROIlessIndices: NNeihbors x 1 np.array, indices of ROIless neighbor voxels in voxelCoordinates
                       ROIlessMap: NNeighbors x 3 np.array, coordinates of ROIless neighbor voxels
     """
     ROIMap = ROIInfo['ROIMaps'][ROIIndex]
@@ -432,6 +432,45 @@ def updateROI(ROIIndex,voxelCoordinates,ROIInfo):
         ROIInfo['ROIMaps'][ROIIndex] = ROIMap
         ROIInfo['ROIVoxels'][ROIIndex] = ROIVoxels
         ROIInfo['ROISizes'][ROIIndex] = len(ROIVoxels)
+    return ROIInfo
+
+def addVoxel(ROIIndex, voxelIndex, ROIInfo, voxelCoordinates):
+    """
+    Adds the given voxel to the given ROI by updating the ROIInfo dictionary
+    accordingly.
+    
+    Parameters:
+    -----------
+    ROIIndex: int, index of the ROI to be updated in ROIInfo['ROIMaps'] etc.
+    voxelIndex: int, index of the voxel to be added to the ROI in voxelCoordinates
+    ROIInfo: dict, containing:
+                  ROICentroids: nROIs x 3 np.array, coordinates of the centroids
+                  ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
+                           belonging to each ROI. len(ROIMaps) = nROIs.
+                  ROIVoxels: list of ROISizes x 1 np.array, indices of the voxels belonging
+                             to each ROI. These indices refer to the columns of
+                             the distance matrix, as well as to the rows of the
+                             voxel time series file. len(ROIVoxels) = nROIs.
+                  ROISizes: nROIs x 1 np.array of ints. Sizes of ROIs defined as
+                            number of voxels in the sphere
+                  ROINames: list of strs, name of the spherical ROI. If no name is given as
+                            input parameter for a ROI, this is set to ''. 
+                            len(ROINames) = NROIs.
+                            
+    Returns:
+    --------
+    ROIInfo: dict, original ROIInfo with the given ROI updated
+    """
+    ROIMap = ROIInfo['ROIMaps'][ROIIndex]
+    ROIVoxels = ROIInfo['ROIVoxels'][ROIIndex]
+    voxel = np.array([voxelCoordinates[voxelIndex,:]])
+    if len(ROIMap.shape) == 1: # adding an outermost dimension for successful concatenation later on
+            ROIMap = np.array([ROIMap])
+    ROIMap = np.concatenate((ROIMap,voxel),axis=0)
+    ROIVoxels = np.concatenate((ROIVoxels,np.array([voxelIndex])),axis=0)
+    ROIInfo['ROIMaps'][ROIIndex] = ROIMap
+    ROIInfo['ROIVoxels'][ROIIndex] = ROIVoxels
+    ROIInfo['ROISizes'][ROIIndex] = len(ROIVoxels)
     return ROIInfo
 
 def growROIs(ROICentroids,voxelCoordinates,names=''):
@@ -505,7 +544,7 @@ def growROIs(ROICentroids,voxelCoordinates,names=''):
 def growOptimizedROIs(cfg):
     """
     Starting from given centroids, grows a set of ROIs optimized in terms of
-    spatial consistency. Optimization is based on a priority que system: at each
+    spatial consistency. Optimization is based on a priority queue system: at each
     step, the correlation is calculated between ROI centroids and ROIless neighbor
     voxels of ROIs, and the voxel with the highest correlation is added to the ROI
     in question.
@@ -546,53 +585,66 @@ def growOptimizedROIs(cfg):
     nROIs = len(ROICentroids)
     nTime = allVoxelTs.shape[1]
     
-    ROIMaps = [np.array(centroid) for centroid in ROICentroids] # at the moment, ROIMaps and ROIVoxels are lists of lists since we don't know how many voxels there will be per ROI
+    ROIMaps = [np.array(centroid) for centroid in ROICentroids]
     ROIVoxels = [np.array(np.where((voxelCoordinates==centroid).all(axis=1)==1)[0]) for centroid in ROICentroids]
-#    ROIVoxels = []
-#    for i, centroid in enumerate(ROICentroids):
-#        print i
-#        if i == 7:
-#            import pdb; pdb.set_trace()
-#        ROIVoxels.append([np.where((voxelCoordinates==centroid).all(axis=1)==1)[0][0]])
-    priorityQues = [findROIlessNeighbors(i,voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'] for i in range(nROIs)]
+    ROIInfo = {'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels,'ROISizes':np.ones(nROIs,dtype=int),'ROINames':cfg['names']}
+    priorityQueues = [findROIlessNeighbors(i,voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'].tolist() for i in range(nROIs)] # priority ques change so it's better to keep them as lists
     centroidTs = np.zeros((nROIs,nTime))
     for i, ROIIndex in enumerate(ROIVoxels):
         centroidTs[i,:] = allVoxelTs[ROIIndex[0],:]
     priorityMeasures = []
-    for priorityQue, centroid in zip(priorityQues, centroidTs):
-        priorityMeasure = [np.corrcoef(centroid,allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQue]
-        priorityOrder = np.argsort(priorityMeasure)
-        priorityQue = priorityQue[priorityOrder]
+#    for priorityQue, centroid in zip(priorityQues, centroidTs):
+#        priorityMeasure = [np.corrcoef(centroid,allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQue]
+#        priorityOrder = np.argsort(priorityMeasure)
+#        priorityQue = priorityQue[priorityOrder]
         
     
-    nROIless = len(findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'])
+    #nROIless = len(findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'])
+    nInQueue = sum([len(priorityQueue) for priorityQueue in priorityQueues])
     
-    while nROIless>0:
+    while nInQueue>0:
+        print str(nInQueue) + ' voxels in priority queues'
+        totalROISize = sum(len(ROIMap) for ROIMap in ROIInfo['ROIMaps'])
+        print str(totalROISize) + ' voxels in ROIs'
+        additionCandidates = np.zeros(nROIs,dtype=int)
+        maximalMeasures = np.zeros(nROIs)
+        for i,(priorityQueue,centroid) in enumerate(zip(priorityQueues,centroidTs)):
+            priorityMeasures = [np.corrcoef(centroid,allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQueue]
+            additionCandidates[i] = priorityQueue[np.argmax(priorityMeasures)]
+            maximalMeasures[i] = np.amax(priorityMeasures)
+        ROIToUpdate = np.argmax(maximalMeasures)
+        voxelToAdd = additionCandidates[ROIToUpdate]
+        ROIInfo = addVoxel(ROIToUpdate,voxelToAdd,ROIInfo,voxelCoordinates)
+        for priorityQueue in priorityQueues:
+            if voxelToAdd in priorityQueue:
+                priorityQueue.remove(voxelToAdd) # voxel can belong to more than one priority que; let's remove it from all of them
+        neighbors = findROIlessVoxels(findNeighbors(voxelCoordinates[voxelToAdd,:],allVoxels=voxelCoordinates),ROIInfo)['ROIlessMap']
+        ROIlessIndices = [np.where((voxelCoordinates == neighbor).all(axis=1)==1)[0][0] for neighbor in neighbors]
+        priorityQueues[ROIToUpdate].extend(ROIlessIndices)
+
+        nInQueue = sum([len(priorityQueue) for priorityQueue in priorityQueues])
         
         
         
-        
-        
-        
-        
-        nROIlessPrevious = nROIless
-        nROIless = len(findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'])
-        
-        if nROIless == nROIlessPrevious: # handling the case where the mask contains neighborless voxels that can't be added to any ROI
-            ROIlessVoxels = findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessMap']
-            noNeighbors = np.zeros(nROIless)
-            for i, voxel in enumerate(ROIlessVoxels):
-                neighbors = findNeighbors(voxel,allVoxels=voxelCoordinates)
-                if len(neighbors) == 0:
-                    noNeighbors[i] = True
-            if all(noNeighbors):
-                break
+        # TODO: check if these are needed; they shoudln't be since neighborless voxels never enter any of the priority queues
+#        nROIlessPrevious = nROIless
+#        nROIless = len(findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'])
+#        
+#        if nROIless == nROIlessPrevious: # handling the case where the mask contains neighborless voxels that can't be added to any ROI
+#            ROIlessVoxels = findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessMap']
+#            noNeighbors = np.zeros(nROIless)
+#            for i, voxel in enumerate(ROIlessVoxels):
+#                neighbors = findNeighbors(voxel,allVoxels=voxelCoordinates)
+#                if len(neighbors) == 0:
+#                    noNeighbors[i] = True
+#            if all(noNeighbors):
+#                break
      # TODO: check if the following lines are actually needed       
 #    ROIMaps = [np.array(ROIMap) for ROIMap in ROIMaps] # transferring ROIMaps and ROIVoxels to lists of arrays when the final sizes are known
 #    ROIVoxels = [np.array(ROIVoxel) for ROIVoxel in ROIVoxels]
 #    ROISizes = np.array([ROIMap.shape[0] for ROIMap in ROIMaps])
             
-    ROIInfo = {'ROICentroids':ROICentroids,'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels,'ROISizes':ROISizes,'ROINames':cfg['names']}
+    #ROIInfo = {'ROICentroids':ROICentroids,'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels,'ROISizes':ROISizes,'ROINames':cfg['names']}
     return ROIInfo
     
     
@@ -622,12 +674,9 @@ def createNii(ROIInfo, savePath, imgSize=[45,54,45], affine=np.eye(4)):
     --------
     No direct output, saves the mask in NIFTI format to the given path
     """
-    #import pdb; pdb.set_trace()
     data = np.zeros(imgSize)
     ROIMaps = ROIInfo['ROIMaps']
     for i, ROI in enumerate(ROIMaps):
-#        if i == 177:
-#            import pdb; pdb.set_trace()
         if len(ROI.shape) == 1:
             data[ROI[0],ROI[1],ROI[2]] = i + 1
         else:
@@ -635,6 +684,28 @@ def createNii(ROIInfo, savePath, imgSize=[45,54,45], affine=np.eye(4)):
                 data[voxel[0],voxel[1],voxel[2]] = i + 1
     img = nib.Nifti1Image(data,affine)     
     nib.save(img,savePath)
+    
+# Accessories
+    
+def getDistribution(data, nBins):
+    """
+    Calculates the PDF of the given data
+    
+    Parameters:
+    -----------
+    data: a container of data points, e.g. list or np.array
+    nBins: int, number of bins used to calculate the distribution
+    
+    Returns:
+    --------
+    pdf: np.array, PDF of the data
+    binCenters: np.array, points where pdf has been calculated
+    """
+    count, binEdges, _ = binned_statistic(data, data, statistic='count', bins=nBins)
+    pdf = count/float(np.sum(count))
+    binCenters = 0.5*(binEdges[:-1]+binEdges[1:])
+    
+    return pdf, binCenters
     
 
 
