@@ -20,8 +20,6 @@ savePath = '/media/onerva/KINGSTON/test-data/optimized-rois-test.nii'
 ROICentroids,_,voxelCoordinates,_ = functions.readROICentroids(ROIInfoFile,readVoxels=True,fixCentroids=True)
 allVoxelTs = io.loadmat(allVoxelTsPath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
 
-#voxelCoordinates = voxelCoordinates[0:1000,:]
-
 cfg = {}
 cfg['ROICentroids'] = ROICentroids
 cfg['voxelCoordinates'] = voxelCoordinates

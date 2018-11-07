@@ -632,13 +632,6 @@ def growOptimizedROIs(cfg):
                     maximalMeasures[i] = np.amax(priorityMeasures)
                 else:
                     maximalMeasures[i] = -1
-                    
-#
-#        neighbors = findROIlessVoxels(findNeighbors(voxelCoordinates[voxelToAdd,:],allVoxels=voxelCoordinates),ROIInfo)['ROIlessMap']
-#        ROIlessIndices = [np.where((voxelCoordinates == neighbor).all(axis=1)==1)[0][0] for neighbor in neighbors]
-#        for ROIlessIndex in ROIlessIndices:
-#            if not ROIlessIndex in priorityQueues[ROIToUpdate]:
-#                priorityQueues[ROIToUpdate].append(ROIlessIndex)
 
         nInQueue = sum([len(priorityQueue) for priorityQueue in priorityQueues])
 
