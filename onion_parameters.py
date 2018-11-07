@@ -21,6 +21,9 @@ optimizedROIInfoFile = 'optimized-rois-test.nii' # note: this is not a full path
 
 # Paths for saving
 
+originalSpatialConsistencySavePath = '/media/onerva/KINGSTON/test-data/spatial-consistency-original.pdf'
+optimizedSpatialConsistencySaveName = 'spatial-consistency-optimized.pdf'
+
 distanceMatrixPath = '/media/onerva/KINGSTON/test-data/outcome/distance-matrix-brainnetome-4mm.pkl'
 consistencyVsRadiusPath = '/media/onerva/KINGSTON/test-data/outcome/consistency-over-radia-brainnetome-4mm-test.pkl'
 

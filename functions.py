@@ -578,6 +578,7 @@ def growOptimizedROIs(cfg):
                             input parameter for a ROI, this is set to ''. 
                             len(ROINames) = NROIs.
     """
+    # Setting up: reading parameters
     ROICentroids = cfg['ROICentroids']
     voxelCoordinates = cfg['voxelCoordinates']
     allVoxelTs = cfg['allVoxelTs']
@@ -585,66 +586,62 @@ def growOptimizedROIs(cfg):
     nROIs = len(ROICentroids)
     nTime = allVoxelTs.shape[1]
     
+    # Setting up: defining initial priority queues, priority measures (centroid-voxel correlations) and candidate voxels to be added per ROI
     ROIMaps = [np.array(centroid) for centroid in ROICentroids]
     ROIVoxels = [np.array(np.where((voxelCoordinates==centroid).all(axis=1)==1)[0]) for centroid in ROICentroids]
     ROIInfo = {'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels,'ROISizes':np.ones(nROIs,dtype=int),'ROINames':cfg['names']}
-    priorityQueues = [findROIlessNeighbors(i,voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'].tolist() for i in range(nROIs)] # priority ques change so it's better to keep them as lists
+    priorityQueues = [findROIlessNeighbors(i,voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'].tolist() for i in range(nROIs)] # priority queues change so it's better to keep them as lists
     centroidTs = np.zeros((nROIs,nTime))
     for i, ROIIndex in enumerate(ROIVoxels):
         centroidTs[i,:] = allVoxelTs[ROIIndex[0],:]
-    priorityMeasures = []
-#    for priorityQue, centroid in zip(priorityQues, centroidTs):
-#        priorityMeasure = [np.corrcoef(centroid,allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQue]
-#        priorityOrder = np.argsort(priorityMeasure)
-#        priorityQue = priorityQue[priorityOrder]
+
+    additionCandidates = np.zeros(nROIs,dtype=int)
+    maximalMeasures = np.zeros(nROIs)
+    for i,(priorityQueue,centroid) in enumerate(zip(priorityQueues,centroidTs)):
+        priorityMeasures = [np.corrcoef(centroid,allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQueue]
+        additionCandidates[i] = priorityQueue[np.argmax(priorityMeasures)]
+        maximalMeasures[i] = np.amax(priorityMeasures)
         
-    
-    #nROIless = len(findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'])
     nInQueue = sum([len(priorityQueue) for priorityQueue in priorityQueues])
     
+    # Actual optimization takes place inside the while loop:    
     while nInQueue>0:
         print str(nInQueue) + ' voxels in priority queues'
         totalROISize = sum(len(ROIMap) for ROIMap in ROIInfo['ROIMaps'])
         print str(totalROISize) + ' voxels in ROIs'
-        additionCandidates = np.zeros(nROIs,dtype=int)
-        maximalMeasures = np.zeros(nROIs)
-        for i,(priorityQueue,centroid) in enumerate(zip(priorityQueues,centroidTs)):
-            priorityMeasures = [np.corrcoef(centroid,allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQueue]
-            additionCandidates[i] = priorityQueue[np.argmax(priorityMeasures)]
-            maximalMeasures[i] = np.amax(priorityMeasures)
+
+        # Selecting the ROI to be updated and voxel to be added to that ROI (based on the highest centroid-voxel correlation)
         ROIToUpdate = np.argmax(maximalMeasures)
         voxelToAdd = additionCandidates[ROIToUpdate]
         ROIInfo = addVoxel(ROIToUpdate,voxelToAdd,ROIInfo,voxelCoordinates)
-        for priorityQueue in priorityQueues:
-            if voxelToAdd in priorityQueue:
-                priorityQueue.remove(voxelToAdd) # voxel can belong to more than one priority que; let's remove it from all of them
+        
+        # Updating priority queues: adding the ROIless neighbors of the updated ROI
         neighbors = findROIlessVoxels(findNeighbors(voxelCoordinates[voxelToAdd,:],allVoxels=voxelCoordinates),ROIInfo)['ROIlessMap']
         ROIlessIndices = [np.where((voxelCoordinates == neighbor).all(axis=1)==1)[0][0] for neighbor in neighbors]
-        priorityQueues[ROIToUpdate].extend(ROIlessIndices)
+        for ROIlessIndex in ROIlessIndices:
+            if not ROIlessIndex in priorityQueues[ROIToUpdate]:
+                priorityQueues[ROIToUpdate].append(ROIlessIndex)
+        
+        # Updating priority queues: removing the added voxel from all priority queues and updating the candidate voxels and maximal measures of the queues that changed        
+        for i, priorityQueue in enumerate(priorityQueues):
+            if voxelToAdd in priorityQueue:
+                priorityQueue.remove(voxelToAdd) # voxel can belong to more than one priority que; let's remove it from all of them
+                if len(priorityQueue) > 0:
+                    priorityMeasures = [np.corrcoef(centroidTs[i],allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQueue]
+                    additionCandidates[i] = priorityQueue[np.argmax(priorityMeasures)]
+                    maximalMeasures[i] = np.amax(priorityMeasures)
+                else:
+                    maximalMeasures[i] = -1
+                    
+#
+#        neighbors = findROIlessVoxels(findNeighbors(voxelCoordinates[voxelToAdd,:],allVoxels=voxelCoordinates),ROIInfo)['ROIlessMap']
+#        ROIlessIndices = [np.where((voxelCoordinates == neighbor).all(axis=1)==1)[0][0] for neighbor in neighbors]
+#        for ROIlessIndex in ROIlessIndices:
+#            if not ROIlessIndex in priorityQueues[ROIToUpdate]:
+#                priorityQueues[ROIToUpdate].append(ROIlessIndex)
 
         nInQueue = sum([len(priorityQueue) for priorityQueue in priorityQueues])
-        
-        
-        
-        # TODO: check if these are needed; they shoudln't be since neighborless voxels never enter any of the priority queues
-#        nROIlessPrevious = nROIless
-#        nROIless = len(findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessIndices'])
-#        
-#        if nROIless == nROIlessPrevious: # handling the case where the mask contains neighborless voxels that can't be added to any ROI
-#            ROIlessVoxels = findROIlessVoxels(voxelCoordinates,{'ROIMaps':ROIMaps})['ROIlessMap']
-#            noNeighbors = np.zeros(nROIless)
-#            for i, voxel in enumerate(ROIlessVoxels):
-#                neighbors = findNeighbors(voxel,allVoxels=voxelCoordinates)
-#                if len(neighbors) == 0:
-#                    noNeighbors[i] = True
-#            if all(noNeighbors):
-#                break
-     # TODO: check if the following lines are actually needed       
-#    ROIMaps = [np.array(ROIMap) for ROIMap in ROIMaps] # transferring ROIMaps and ROIVoxels to lists of arrays when the final sizes are known
-#    ROIVoxels = [np.array(ROIVoxel) for ROIVoxel in ROIVoxels]
-#    ROISizes = np.array([ROIMap.shape[0] for ROIMap in ROIMaps])
-            
-    #ROIInfo = {'ROICentroids':ROICentroids,'ROIMaps':ROIMaps,'ROIVoxels':ROIVoxels,'ROISizes':ROISizes,'ROINames':cfg['names']}
+
     return ROIInfo
     
     

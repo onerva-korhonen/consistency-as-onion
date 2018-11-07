@@ -23,6 +23,8 @@ subjects = params.testSubjectFolders
 originalROIInfoPath = params.originalROIInfoFile
 optimizedROIInfoFile = params.optimizedROIInfoFile
 allVoxelTsFile = params.ROIVoxelTsFileName
+optimizedConsistencySaveName = params.optimizedSpatialConsistencySaveName
+originalConsistencySavePath = params.originalSpatialConsistencySavePath
 figureSavePath = params.spatialConsistencyValidationPath
 
 fig = plt.figure()
@@ -43,7 +45,11 @@ for i, subject in enumerate(subjects):
         ROIIndices.append(indices)
       
     spatialConsistencies = functions.calculateSpatialConsistencyInParallel(ROIIndices,allVoxelTs)
-    consistencyDistribution,binCenters = functions.getDistribution(spatialConsistencies)
+    spatialConsistencyData = {'spatialConsistencies':spatialConsistencies,'type':'optimized'}
+    savePath = subject + optimizedConsistencySaveName
+    with open(savePath, 'wb') as f:
+        pickle.dump(spatialConsistencyData, f, -1)
+    consistencyDistribution,binCenters = functions.getDistribution(spatialConsistencies,params.nConsistencyBins)
     
     if i == 0:
         ax.plot(binCenters,consistencyDistribution,color=params.optimizedColor,alpha=params.optimizedAlpha,label='Optimized ROIs')
@@ -60,6 +66,10 @@ for ROIMap in ROIMaps:
     ROIIndices.append(indices)
   
 spatialConsistencies = functions.calculateSpatialConsistencyInParallel(ROIIndices,allVoxelTs)
+spatialConsistencyData = {'spaitalConsistencies':spatialConsistencies,'type':'original Brainnetome'}
+with open(originalConsistencySavePath, 'wb') as f:
+        pickle.dump(spatialConsistencyData, f, -1)
+
 consistencyDistribution,binCenters = functions.getDistribution(spatialConsistencies)
 
 ax.plot(binCenters,consistencyDistribution,color=params.optimizedColor,alpha=params.optimizedAlpha,label='Original ROIs')
