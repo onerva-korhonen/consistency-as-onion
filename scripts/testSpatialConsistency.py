@@ -12,6 +12,12 @@ import matplotlib.pylab as plt
 from scipy import io
 import cPickle as pickle
 
+import sys
+try:
+    sys.path.insert(0,'/home/onerva/consistency-as-onion')
+except:
+    sys.path.insert(0,'/home/onerva/projects/consistency-as-onion')   
+
 import functions
 import onion_parameters as params
 

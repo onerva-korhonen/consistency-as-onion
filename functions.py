@@ -12,10 +12,11 @@ import cPickle as pickle
 import nibabel as nib
 
 from scipy import io
+from scipy.stats import binned_statistic
 from concurrent.futures import ProcessPoolExecutor as Pool
 
 
-def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False):
+def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False, resolution=4):
     """
     Reads ROI data, in particular the coordinates of ROI centroids. An option
     for reading coordinates of all voxels exist. 
@@ -26,6 +27,9 @@ def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False):
     readVoxels: bool, will voxel coordinates be read? (default=False)
     fixCentroids: bool, if fixCentroids=True, the function will return as centroid 
                   the one of ROI's voxels that is closest to the actual centroid.
+    resolution: int, the physical distance (in mm) between two points in the voxel space
+                (used for transforming centroids into the MNI space if the ROIInfoFile
+                doesn't contain the MNI coordinates; default: 4).
         
     Returns:
     --------
@@ -34,27 +38,48 @@ def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False):
     voxelCoordinates: nVoxels x 3 np.array, coordinates (in voxels) of all voxels
     ROIMaps: list of ROISize x 3 np.arrays, coordinates (in voxels) of voxels belonging to each ROI
     """
-    infoData = io.loadmat(ROIInfoFile)
-    ROIInfo = infoData['rois'][0]
-    nROIs = ROIInfo.shape[0] # number of ROIs
-    ROICentroids = np.zeros((nROIs,3),dtype=int)
-    ROIMNICentroids = np.zeros((nROIs,3))
-    voxelCoordinates = []
-    ROIMaps = []
-    for i, ROI in enumerate(ROIInfo):
-        centroid = np.array(ROI['centroid'][0]) - np.array([1,1,1]) # correcting for the indexing difference between Matlab and Spyder
-        if fixCentroids:
-            ROIMap = ROI['map'] - np.ones(ROI['map'].shape,dtype=int)
-            distances = np.zeros(ROIMap.shape[0])
-            for j, voxel in enumerate(ROIMap):
-                distances[j] = np.sqrt(np.sum((voxel-centroid)**2))
-            centroid = ROIMap[np.where(distances==np.amin(distances))[0][0]] # if multiple voxels are at the same distance from the centroid, the first one is picked
-        ROICentroids[i,:] = centroid
-        ROIMNICentroids[i,:] = ROI['centroidMNI'][0]
+    if ROIInfoFile[-4::] == '.mat':
+        infoData = io.loadmat(ROIInfoFile)
+        ROIInfo = infoData['rois'][0]
+        nROIs = ROIInfo.shape[0] # number of ROIs
+        ROICentroids = np.zeros((nROIs,3),dtype=int)
+        ROIMNICentroids = np.zeros((nROIs,3))
+        voxelCoordinates = []
+        ROIMaps = []
+        for i, ROI in enumerate(ROIInfo):
+            centroid = np.array(ROI['centroid'][0]) - np.array([1,1,1]) # correcting for the indexing difference between Matlab and Spyder
+            if fixCentroids:
+                ROIMap = ROI['map'] - np.ones(ROI['map'].shape,dtype=int)
+                distances = np.zeros(ROIMap.shape[0])
+                for j, voxel in enumerate(ROIMap):
+                    distances[j] = np.sqrt(np.sum((voxel-centroid)**2))
+                centroid = ROIMap[np.where(distances==np.amin(distances))[0][0]] # if multiple voxels are at the same distance from the centroid, the first one is picked
+            ROICentroids[i,:] = centroid
+            ROIMNICentroids[i,:] = ROI['centroidMNI'][0]
+            if readVoxels:
+                voxelCoordinates.extend(list(ROI['map'] - np.ones(ROI['map'].shape,dtype=int)))
+                ROIMaps.append(ROI['map']-np.ones(ROI['map'].shape,dtype=int))
+        voxelCoordinates = np.array(voxelCoordinates)
+    # TODO: check the reading of pickle files when the file structure is more established    
+    elif ROIInfoFile[-4::] == '.pkl':
+        f = open(ROIInfoFile, "rb")
+        ROIInfo = pickle.load(f)
+        f.close()
+        ROIMaps = ROIInfo['ROIMaps']
+        ROICentroids = np.zeros((len(ROIMaps),3),dtype=int)
+        ROIMNICentroids = np.zeros((len(ROIMaps),3),dtype=int)
+        for i, ROIMap in enumerate(ROIMaps):
+            centroid = getCentroid(ROIMap)
+            ROICentroids[i,:] = centroid
+            ROIMNICentroids[i,:] = spaceToMNI(centroid,resolution)
+        voxelCoordinates = []
         if readVoxels:
-            voxelCoordinates.extend(list(ROI['map'] - np.ones(ROI['map'].shape,dtype=int)))
-            ROIMaps.append(ROI['map']-np.ones(ROI['map'].shape,dtype=int))
-    voxelCoordinates = np.array(voxelCoordinates)
+            for ROIMap in ROIMaps:
+                voxelCoordinates.extend(ROIMap)
+            voxelCoordinates = np.array(voxelCoordinates)
+    else:
+        print 'Unknown file format; accepted formats are .mat and .pkl'
+        
     return ROICentroids, ROIMNICentroids, voxelCoordinates, ROIMaps
     
 def getDistanceMatrix(ROICentroids, voxelCoords, save=False, savePath=''):
@@ -113,7 +138,7 @@ def calculateSpatialConsistency(params):
             fTransform: bool, are the correlations Fisher f transformed before averaging
                         when consistencyType = 'pearson c' (default=False)
                 
-        voxelIdices: np.array, indices of voxels; these indices should refer to voxels' 
+        voxelIndices: np.array, indices of voxels; these indices should refer to voxels' 
                 locations in the file containing voxel time series; note that the chunk
                 must contain at least one voxel
           
@@ -151,6 +176,8 @@ def calculateSpatialConsistency(params):
     consistencyType = cfg['consistencyType']
     fTransform = cfg['fTransform']
     voxelIndices = params[1]
+    
+    print 'Calculating spatial consistency'
     
     if np.amax(voxelIndices.shape) == 0:
         spatialConsistency = 0
@@ -203,7 +230,81 @@ def calculateSpatialConsistencyInParallel(voxelIndices,allVoxelTs,consistencyTyp
     pool = Pool(max_workers = nCPUs)
     spatialConsistencies = list(pool.map(calculateSpatialConsistency,paramSpace,chunksize=1))
     return spatialConsistencies
-     
+
+def calculateCorrelationToCentroid(params):
+    """
+    Calculates the mean correlation between ROI centroid and all voxel time
+    series in the ROI.
+    
+    Parameters:
+    -----------
+    params: tuple, containing:
+    
+        cfg: dict, containing:
+            allVoxelTs: structured np.array with a field name 'roi_voxel_ts' (and possible additional 
+                    fields), this field contains voxel time series
+                
+        individualInfo: dict, containing:
+            voxelIndices: np.array, indices of voxels; these indices should refer to voxels' 
+                    locations in the file containing voxel time series; note that the chunk
+                    must contain at least one voxel
+            centroidIndex: int, index of the ROI centroid in the allVoxelTs array
+            
+    Returns:
+    --------
+    correlationToCentroid: float, mean correlation between centroid and voxel ts.
+    """
+    cfg = params[0]
+    allVoxelTs = cfg['allVoxelTs']
+    individualInfo = params[1]
+    voxelIndices = individualInfo['voxelIndices']
+    centroidIndex = individualInfo['centroidIndex']
+    
+    print 'Calculating correlation to centroid'
+    
+    if np.amax(voxelIndices.shape) == 0:
+        correlationToCentroid = 0
+        print "Detected an empty ROI, set correlation to centroid to 0."
+    elif np.amax(voxelIndices.shape) == 1:
+        correlationToCentroid = 1. # a single voxel is always fully consistent
+    else: 
+        voxelTs = allVoxelTs[voxelIndices,:]
+        centroidTs = allVoxelTs[centroidIndex,:]
+        correlations = []
+        for voxel in voxelTs:
+            correlations.append(np.corrcoef(voxel,centroidTs)[0][1])
+        correlationToCentroid = np.mean(correlations)
+    if np.isnan(correlationToCentroid):
+        print 'nan detected!'
+    return correlationToCentroid
+
+def calculateCorrelationsToCentroidInParallel(voxelIndices,allVoxelTs,centroidIndices,nCPUs=5):
+    """
+    A wrapper function for calculating the correlation to ROI centroid in parallel across
+    ROIs.
+    
+    Parameters:
+    -----------
+    voxelIndices: list of np.arrays, each array containing indices of voxels of one ROI; 
+               these indices should refer to voxels' 
+               locations in the file containing voxel time series; note that the chunk
+               must contain at least one voxel
+    allVoxelTs: structured np.array with a field name 'roi_voxel_ts' (and possible additional 
+                fields), this field contains voxel time series
+    centroidIndices: np.array of indices of ROI centroids in allVoxelTs
+    nCPUs = int, number of CPUs to be used for the parallel computing (default = 5)
+    
+    
+    Returns:
+    --------
+    correlationsToCentroid: list of doubles, correlations of the voxel ts defined
+                          by voxelIndices to the ROICentroids
+    """
+    cfg = {'allVoxelTs':allVoxelTs}
+    paramSpace = [(cfg,{'voxelIndices':voxelInd,'centroidIndex':centroidIndices}) for voxelInd,centroidIndex in zip(voxelIndices,centroidIndices)]
+    pool = Pool(max_workers = nCPUs)
+    correlationsToCentroid = list(pool.map(calculateCorrelationToCentroid,paramSpace,chunksize=1))
+    return correlationsToCentroid
         
 def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names='', distanceMatrixPath='', save=False, savePath=''):
     """
@@ -603,6 +704,7 @@ def growOptimizedROIs(cfg):
         maximalMeasures[i] = np.amax(priorityMeasures)
         
     nInQueue = sum([len(priorityQueue) for priorityQueue in priorityQueues])
+    selectedMeasures = []
     
     # Actual optimization takes place inside the while loop:    
     while nInQueue>0:
@@ -614,6 +716,7 @@ def growOptimizedROIs(cfg):
         ROIToUpdate = np.argmax(maximalMeasures)
         voxelToAdd = additionCandidates[ROIToUpdate]
         ROIInfo = addVoxel(ROIToUpdate,voxelToAdd,ROIInfo,voxelCoordinates)
+        selectedMeasures.append(np.amax(maximalMeasures))
         
         # Updating priority queues: adding the ROIless neighbors of the updated ROI
         neighbors = findROIlessVoxels(findNeighbors(voxelCoordinates[voxelToAdd,:],allVoxels=voxelCoordinates),ROIInfo)['ROIlessMap']
@@ -635,7 +738,7 @@ def growOptimizedROIs(cfg):
 
         nInQueue = sum([len(priorityQueue) for priorityQueue in priorityQueues])
 
-    return ROIInfo
+    return ROIInfo, selectedMeasures
     
     
     
@@ -697,6 +800,43 @@ def getDistribution(data, nBins):
     
     return pdf, binCenters
     
+def getCentroid(coordinates):
+    """
+    Calculates the centroid (rounded mean) of a given set of coordinates.
+    
+    Parameters:
+    -----------
+    coordinates: nRows x 3 np.array, points for calculating the centroid
+    
+    Returns:
+    --------
+    centroid: 1 x 3 np.array, centroid of the coordinates
+    """
+    centroid = np.round(np.mean(coordinates,axis=0)).astype(int)
+    return centroid
+
+def spaceToMNI(coordinate,resolution):
+    """
+    Transform a set of array indices into the MNI space.
+    
+    Parameters:
+    -----------
+    coordinate: 1 x 3 np.array, the indices to be transformed
+    resolution: int, the physical distance (in mm) between the elements of the array
+    
+    Returns:
+    --------
+    MNICoordinate: 1 x 3 np.array, the corresponding coordinates in MNI space
+    
+    TODO: move this function of nifti_tools
+    """
+    origin = np.array([90, -126, -72])
+    m = np.array([-1*resolution,resolution,resolution])
+    MNICoordinate = coordinate * m + origin
+    return MNICoordinate
+
+
+
 
 
    
