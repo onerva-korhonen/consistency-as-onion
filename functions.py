@@ -75,7 +75,10 @@ def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False, resoluti
         voxelCoordinates = []
         if readVoxels:
             for ROIMap in ROIMaps:
-                voxelCoordinates.extend(ROIMap)
+                if len(ROIMap.shape) == 1:
+                    voxelCoordinates.append(ROIMap)
+                else:
+                    voxelCoordinates.extend(ROIMap)
             voxelCoordinates = np.array(voxelCoordinates)
     else:
         print 'Unknown file format; accepted formats are .mat and .pkl'
@@ -662,6 +665,7 @@ def growOptimizedROIs(cfg):
          names: list of strs, names of the ROIs, can be e.g. the anatomical name associated with
                   the centroid. Default = ''.
          allVoxelTs: nVoxels x nTime np.array, time series of all voxels
+         threshold: float, the lowest centroid-voxel correlation that leads to adding a voxel (default=-1)
     
     Returns:
     --------
@@ -683,6 +687,10 @@ def growOptimizedROIs(cfg):
     ROICentroids = cfg['ROICentroids']
     voxelCoordinates = cfg['voxelCoordinates']
     allVoxelTs = cfg['allVoxelTs']
+    if 'threshold' in cfg.keys():
+        threshold = cfg['threshold']
+    else:
+        threshold = -1
     
     nROIs = len(ROICentroids)
     nTime = allVoxelTs.shape[1]
@@ -707,16 +715,19 @@ def growOptimizedROIs(cfg):
     selectedMeasures = []
     
     # Actual optimization takes place inside the while loop:    
-    while nInQueue>0:
+    while nInQueue>0 and np.amax(maximalMeasures) >= threshold :
         print str(nInQueue) + ' voxels in priority queues'
         totalROISize = sum(len(ROIMap) for ROIMap in ROIInfo['ROIMaps'])
         print str(totalROISize) + ' voxels in ROIs'
 
         # Selecting the ROI to be updated and voxel to be added to that ROI (based on the highest centroid-voxel correlation)
         ROIToUpdate = np.argmax(maximalMeasures)
+        if ROIToUpdate == 147:
+            print 'something happening'
         voxelToAdd = additionCandidates[ROIToUpdate]
         ROIInfo = addVoxel(ROIToUpdate,voxelToAdd,ROIInfo,voxelCoordinates)
         selectedMeasures.append(np.amax(maximalMeasures))
+        selectedMeasure = np.amax(maximalMeasures) #TODO: remove after debugging
         
         # Updating priority queues: adding the ROIless neighbors of the updated ROI
         neighbors = findROIlessVoxels(findNeighbors(voxelCoordinates[voxelToAdd,:],allVoxels=voxelCoordinates),ROIInfo)['ROIlessMap']
@@ -735,7 +746,10 @@ def growOptimizedROIs(cfg):
                     maximalMeasures[i] = np.amax(priorityMeasures)
                 else:
                     maximalMeasures[i] = -1
-
+                    
+        if np.amax(maximalMeasures) > selectedMeasure: #TODO: remove after debugging
+            print 'something happening'
+        
         nInQueue = sum([len(priorityQueue) for priorityQueue in priorityQueues])
 
     return ROIInfo, selectedMeasures

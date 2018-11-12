@@ -48,15 +48,18 @@ for i, subject in enumerate(subjects):
     optimizedROIInfoPath = subject + optimizedROIInfoFile
     allVoxelTsPath = subject + allVoxelTsFile
     
-    allVoxelTs = allVoxelTs = io.loadmat(allVoxelTsPath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
+    allVoxelTs = io.loadmat(allVoxelTsPath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
     _,_,voxelCoordinates,ROIMaps = functions.readROICentroids(optimizedROIInfoPath,readVoxels=True)
     
     ROIIndices = []
     for ROIMap in ROIMaps:
         indices = np.zeros(len(ROIMap),dtype=int)
-        for j, voxel in enumerate(ROIMap):
-            #print 'something'
-            indices[j] = np.where((voxelCoordinates == voxel).all(axis=1)==1)[0][0]
+        if len(ROIMap.shape) == 1:
+            indices[0] = np.where((voxelCoordinates == ROIMap).all(axis=1)==1)[0][0]
+        else:
+            for j, voxel in enumerate(ROIMap):
+                #print 'something'
+                indices[j] = np.where((voxelCoordinates == voxel).all(axis=1)==1)[0][0]
         ROIIndices.append(indices)
         
     spatialConsistencies = functions.calculateSpatialConsistencyInParallel(ROIIndices,allVoxelTs)
