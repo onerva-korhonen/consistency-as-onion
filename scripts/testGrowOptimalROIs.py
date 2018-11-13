@@ -23,8 +23,8 @@ import onion_parameters as params
 
 allVoxelTsPath = params.testSubjectFolders[0] + params.ROIVoxelTsFileName
 ROIInfoFile = params.originalROIInfoFile
-niiSavePath = params.testSubjectFolders[0] + '/optimized-rois-test.nii'
-pickleSavePath = params.testSubjectFolders[0] + '/optimized-rois-test.pkl'
+niiSavePath = params.testSubjectFolders[0] + '/optimized-rois-test-spatialConsistency.nii'
+pickleSavePath = params.testSubjectFolders[0] + '/optimized-rois-test-spatialConsistency.pkl'
 
 ROICentroids,_,voxelCoordinates,_ = functions.readROICentroids(ROIInfoFile,readVoxels=True,fixCentroids=True)
 allVoxelTs = io.loadmat(allVoxelTsPath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
@@ -36,6 +36,7 @@ cfg['names'] = ''
 cfg['allVoxelTs'] = allVoxelTs
 
 cfg['threshold'] = -1.0
+cfg['targetFunction'] = 'spatialConsistency'
 
 ROIInfo, selectedMeasures = functions.growOptimizedROIs(cfg)
 

@@ -649,9 +649,13 @@ def growOptimizedROIs(cfg):
     """
     Starting from given centroids, grows a set of ROIs optimized in terms of
     spatial consistency. Optimization is based on a priority queue system: at each
-    step, the correlation is calculated between ROI centroids and ROIless neighbor
-    voxels of ROIs, and the voxel with the highest correlation is added to the ROI
-    in question.
+    step, a measure is calculated for each centroid-voxel pair and the voxel
+    with the highest measure value is added to the ROI in question.
+    
+    Possible measures are:
+        1) the correlation between the ROI centroid time series and voxel time series
+        2) the spatial consistency (mean Pearson correlation coefficient) of the voxels
+           already in the ROI and the candidate voxel
     
     Parameters:
     -----------
@@ -666,6 +670,11 @@ def growOptimizedROIs(cfg):
                   the centroid. Default = ''.
          allVoxelTs: nVoxels x nTime np.array, time series of all voxels
          threshold: float, the lowest centroid-voxel correlation that leads to adding a voxel (default=-1)
+         targetFunction: str, measure that will be optimized (options: correlationWithCentroid, spatialConsistency)
+         consistencyType: str, definition of spatial consistency to be used if 
+                          targetFunction == 'spatialConsistency' (default: 'pearson c' (mean Pearson correlation coefficient))
+         fTransform: bool, should Fisher Z transform be applied if targetFunction == 'spatialConsistency' 
+                     (default=False)
     
     Returns:
     --------
@@ -691,6 +700,16 @@ def growOptimizedROIs(cfg):
         threshold = cfg['threshold']
     else:
         threshold = -1
+    targetFunction = cfg['targetFunction']
+    if targetFunction == 'spatialConsistency':
+        if 'consistencyType' in cfg.keys():
+            consistencyType = cfg['consistencyType']
+        else:
+            consistencyType = 'pearson c'
+        if 'fTransform' in cfg.keys():
+            fTransform = cfg['fTransform']
+        else:
+            fTransform = False
     
     nROIs = len(ROICentroids)
     nTime = allVoxelTs.shape[1]
@@ -706,8 +725,15 @@ def growOptimizedROIs(cfg):
 
     additionCandidates = np.zeros(nROIs,dtype=int)
     maximalMeasures = np.zeros(nROIs)
-    for i,(priorityQueue,centroid) in enumerate(zip(priorityQueues,centroidTs)):
-        priorityMeasures = [np.corrcoef(centroid,allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQueue]
+    
+    for i,(priorityQueue,centroid,ROI) in enumerate(zip(priorityQueues,centroidTs,ROIInfo['ROIVoxels'])):
+        if targetFunction == 'correlationWithCentroid':
+            priorityMeasures = [np.corrcoef(centroid,allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQueue]
+        elif targetFunction == 'spatialConsistency':
+            priorityMeasures = np.zeros(len(priorityQueue))
+            for j, voxel in enumerate(priorityQueue):
+                voxelIndices = np.concatenate((ROI,np.array([voxel])))
+                priorityMeasures[j] = calculateSpatialConsistency(({'allVoxelTs':allVoxelTs,'consistencyType':consistencyType,'fTransform':fTransform},voxelIndices))
         additionCandidates[i] = priorityQueue[np.argmax(priorityMeasures)]
         maximalMeasures[i] = np.amax(priorityMeasures)
         
@@ -717,17 +743,14 @@ def growOptimizedROIs(cfg):
     # Actual optimization takes place inside the while loop:    
     while nInQueue>0 and np.amax(maximalMeasures) >= threshold :
         print str(nInQueue) + ' voxels in priority queues'
-        totalROISize = sum(len(ROIMap) for ROIMap in ROIInfo['ROIMaps'])
+        totalROISize = sum(len(ROIVox) for ROIVox in ROIInfo['ROIVoxels'])
         print str(totalROISize) + ' voxels in ROIs'
 
         # Selecting the ROI to be updated and voxel to be added to that ROI (based on the highest centroid-voxel correlation)
         ROIToUpdate = np.argmax(maximalMeasures)
-        if ROIToUpdate == 147:
-            print 'something happening'
         voxelToAdd = additionCandidates[ROIToUpdate]
         ROIInfo = addVoxel(ROIToUpdate,voxelToAdd,ROIInfo,voxelCoordinates)
         selectedMeasures.append(np.amax(maximalMeasures))
-        selectedMeasure = np.amax(maximalMeasures) #TODO: remove after debugging
         
         # Updating priority queues: adding the ROIless neighbors of the updated ROI
         neighbors = findROIlessVoxels(findNeighbors(voxelCoordinates[voxelToAdd,:],allVoxels=voxelCoordinates),ROIInfo)['ROIlessMap']
@@ -741,18 +764,23 @@ def growOptimizedROIs(cfg):
             if voxelToAdd in priorityQueue:
                 priorityQueue.remove(voxelToAdd) # voxel can belong to more than one priority que; let's remove it from all of them
                 if len(priorityQueue) > 0:
-                    priorityMeasures = [np.corrcoef(centroidTs[i],allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQueue]
+                    if targetFunction == 'correlationWithCentroid':
+                        priorityMeasures = [np.corrcoef(centroidTs[i],allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQueue]
+                    elif targetFunction == 'spatialConsistency':
+                        priorityMeasures = np.zeros(len(priorityQueue))
+                        for j, voxel in enumerate(priorityQueue):
+                            voxelIndices = np.concatenate((ROIInfo['ROIVoxels'][i],np.array([voxel])))
+                            priorityMeasures[j] = calculateSpatialConsistency(({'allVoxelTs':allVoxelTs,'consistencyType':consistencyType,'fTransform':fTransform},voxelIndices))
                     additionCandidates[i] = priorityQueue[np.argmax(priorityMeasures)]
                     maximalMeasures[i] = np.amax(priorityMeasures)
                 else:
                     maximalMeasures[i] = -1
-                    
-        if np.amax(maximalMeasures) > selectedMeasure: #TODO: remove after debugging
-            print 'something happening'
         
         nInQueue = sum([len(priorityQueue) for priorityQueue in priorityQueues])
 
     return ROIInfo, selectedMeasures
+
+
     
     
     
