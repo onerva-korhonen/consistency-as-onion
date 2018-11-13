@@ -17,20 +17,20 @@ ROIVoxelTsFileName = 'roi_voxel_ts_all_rois4mm_FWHM0.mat'
 ROIVoxelTsInfoFileName = 'roi_voxel_ts_all_rois4mm_WHM0_info.mat'
 
 originalROIInfoFile = '/media/onerva/KINGSTON/test-data/group_roi_mask-30-4mm_with_subcortl_and_cerebellum.mat'
-optimizedROIInfoFile = 'optimized-rois-test-thresholded.pkl' # note: this is not a full path; this is the name of the file that is located in each subject's folder (as optimization is done separately for each subject)
+optimizedROIInfoFile = 'optimized-rois-test.pkl' # note: this is not a full path; this is the name of the file that is located in each subject's folder (as optimization is done separately for each subject)
 
 # Paths for saving
 
 originalSpatialConsistencySavePath = '/media/onerva/KINGSTON/test-data/spatial-consistency-original.pkl'
-optimizedSpatialConsistencySaveName = 'spatial-consistency-optimized-thresholded.pkl'
+optimizedSpatialConsistencySaveName = 'spatial-consistency-optimized.pkl'
 originalCorrelationSavePath = '/media/onerva/KINGSTON/test-data/correlation-to-centroid-original.pkl'
-optimizedCorrelationSaveName = 'correlation-to-centroid-optimized-thresholded.pkl'
+optimizedCorrelationSaveName = 'correlation-to-centroid-optimized.pkl'
 
 distanceMatrixPath = '/media/onerva/KINGSTON/test-data/outcome/distance-matrix-brainnetome-4mm.pkl'
 consistencyVsRadiusPath = '/media/onerva/KINGSTON/test-data/outcome/consistency-over-radia-brainnetome-4mm-test.pkl'
 
-spatialConsistencyValidationPath = '/media/onerva/KINGSTON/test-data/outcome/spatial-consisistency-validation-thresholded.pdf'
-maximalMeasureFigurePath = '/media/onerva/KINGSTON/test-data/outcome/maximal-measure-thresholded.pdf'
+spatialConsistencyValidationPath = '/media/onerva/KINGSTON/test-data/outcome/spatial-consisistency-validation.pdf'
+maximalMeasureFigurePath = '/media/onerva/KINGSTON/test-data/outcome/maximal-measure.pdf'
 
 # Parallelization
 nCPUs = 5

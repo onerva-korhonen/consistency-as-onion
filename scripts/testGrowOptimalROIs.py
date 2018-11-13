@@ -23,8 +23,8 @@ import onion_parameters as params
 
 allVoxelTsPath = params.testSubjectFolders[0] + params.ROIVoxelTsFileName
 ROIInfoFile = params.originalROIInfoFile
-niiSavePath = params.testSubjectFolders[0] + '/optimized-rois-test-threholded.nii'
-pickleSavePath = params.testSubjectFolders[0] + '/optimized-rois-test-thresholded.pkl'
+niiSavePath = params.testSubjectFolders[0] + '/optimized-rois-test.nii'
+pickleSavePath = params.testSubjectFolders[0] + '/optimized-rois-test.pkl'
 
 ROICentroids,_,voxelCoordinates,_ = functions.readROICentroids(ROIInfoFile,readVoxels=True,fixCentroids=True)
 allVoxelTs = io.loadmat(allVoxelTsPath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
@@ -35,7 +35,7 @@ cfg['voxelCoordinates'] = voxelCoordinates
 cfg['names'] = ''
 cfg['allVoxelTs'] = allVoxelTs
 
-cfg['threshold'] = 0.7
+cfg['threshold'] = -1.0
 
 ROIInfo, selectedMeasures = functions.growOptimizedROIs(cfg)
 

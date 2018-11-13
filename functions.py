@@ -304,9 +304,12 @@ def calculateCorrelationsToCentroidInParallel(voxelIndices,allVoxelTs,centroidIn
                           by voxelIndices to the ROICentroids
     """
     cfg = {'allVoxelTs':allVoxelTs}
-    paramSpace = [(cfg,{'voxelIndices':voxelInd,'centroidIndex':centroidIndices}) for voxelInd,centroidIndex in zip(voxelIndices,centroidIndices)]
-    pool = Pool(max_workers = nCPUs)
-    correlationsToCentroid = list(pool.map(calculateCorrelationToCentroid,paramSpace,chunksize=1))
+    paramSpace = [(cfg,{'voxelIndices':voxelInd,'centroidIndex':centroidIndex}) for voxelInd,centroidIndex in zip(voxelIndices,centroidIndices)]
+    #pool = Pool(max_workers = nCPUs)
+    #correlationsToCentroid = list(pool.map(calculateCorrelationToCentroid,paramSpace,chunksize=1))
+    correlationsToCentroid = []
+    for params in paramSpace:
+        correlationsToCentroid.append(calculateCorrelationToCentroid(params))
     return correlationsToCentroid
         
 def defineSphericalROIs(ROICentroids, voxelCoords, radius, resolution=4.0, names='', distanceMatrixPath='', save=False, savePath=''):

@@ -21,69 +21,101 @@ import sys
 if os.path.exists('/home/onerva/consistency-as-onion'):
     sys.path.insert(0,'/home/onerva/consistency-as-onion')
 else:
-    sys.path.insert(0,'/home/onerva/projects/consistency-as-onion')  
+    sys.path.insert(0,'/home/onerva/projects/consistency-as-onion')   
 
 import functions
 import onion_parameters as params
 
-subjects = params.testSubjectFolders
+subjects = [params.testSubjectFolders[0]]
 originalROIInfoPath = params.originalROIInfoFile
 optimizedROIInfoFile = params.optimizedROIInfoFile
 allVoxelTsFile = params.ROIVoxelTsFileName
 optimizedConsistencySaveName = params.optimizedSpatialConsistencySaveName
 originalConsistencySavePath = params.originalSpatialConsistencySavePath
+optimizedCorrelationSaveName = params.optimizedCorrelationSaveName
+originalCorrelationSavePath = params.originalCorrelationSavePath
 figureSavePath = params.spatialConsistencyValidationPath
 
 fig = plt.figure()
-ax = fig.add_subplot(111)
+ax1 = fig.add_subplot(211)
+ax2 = fig.add_subplot(212)
+
+originalCentroids,_,originalVoxelCoordinates,originalROIMaps = functions.readROICentroids(originalROIInfoPath,readVoxels=True,fixCentroids=True)
+centroidIndices = np.zeros(len(originalCentroids),dtype=int)
+for i, originalCentroid in enumerate(originalCentroids):
+    centroidIndices[i] = np.where((originalVoxelCoordinates==originalCentroid).all(axis=1)==1)[0][0]
 
 for i, subject in enumerate(subjects):
     optimizedROIInfoPath = subject + optimizedROIInfoFile
     allVoxelTsPath = subject + allVoxelTsFile
     
-    allVoxelTs = allVoxelTs = io.loadmat(allVoxelTsPath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
-    _,_,voxelCoordinates,ROIMaps = functions.readROICentroids(optimizedROIInfoPath,readVoxels=True)
+    allVoxelTs = io.loadmat(allVoxelTsPath)['roi_voxel_data'][0]['roi_voxel_ts'][0]
+    _,_,_,ROIMaps = functions.readROICentroids(optimizedROIInfoPath,readVoxels=True)
     
     ROIIndices = []
     for ROIMap in ROIMaps:
-        indices = np.zeros(len(ROIMap),dtype=int)
-        for i, voxel in enumerate(ROIMap):
-            indices[i] = np.where((voxelCoordinates == voxel).all(axis=1)==1)[0][0]
+        #indices = np.zeros(len(ROIMap),dtype=int)
+        if len(ROIMap.shape) == 1:
+            indices = np.where((originalVoxelCoordinates == ROIMap).all(axis=1)==1)[0]
+        else:
+            indices = np.zeros(len(ROIMap),dtype=int)
+            for j, voxel in enumerate(ROIMap):
+                #print 'something'
+                indices[j] = np.where((originalVoxelCoordinates == voxel).all(axis=1)==1)[0][0]
         ROIIndices.append(indices)
-      
+        
     spatialConsistencies = functions.calculateSpatialConsistencyInParallel(ROIIndices,allVoxelTs)
     spatialConsistencyData = {'spatialConsistencies':spatialConsistencies,'type':'optimized'}
     savePath = subject + optimizedConsistencySaveName
     with open(savePath, 'wb') as f:
         pickle.dump(spatialConsistencyData, f, -1)
-    consistencyDistribution,binCenters = functions.getDistribution(spatialConsistencies,params.nConsistencyBins)
+    consistencyDistribution,consistencyBinCenters = functions.getDistribution(spatialConsistencies,params.nConsistencyBins)
+    
+    correlationsToCentroid = functions.calculateCorrelationsToCentroidInParallel(ROIIndices,allVoxelTs,centroidIndices)
+    correlationData = {'correlationsToCentroid':correlationsToCentroid,'type':'optimized'}
+    savePath = subject + optimizedCorrelationSaveName
+    with open(savePath, 'wb') as f:
+        pickle.dump(correlationData, f, -1)
+    correlationDistribution,correlationBinCenters = functions.getDistribution(correlationsToCentroid,params.nConsistencyBins)
     
     if i == 0:
-        ax.plot(binCenters,consistencyDistribution,color=params.optimizedColor,alpha=params.optimizedAlpha,label='Optimized ROIs')
+        ax1.plot(consistencyBinCenters,consistencyDistribution,color=params.optimizedColor,alpha=params.optimizedAlpha,label='Optimized ROIs')
+        ax2.plot(correlationBinCenters,correlationDistribution,color=params.optimizedColor,alpha=params.optimizedAlpha,label='Optimized ROIs')
     else:
-        ax.plot(binCenters,consistencyDistribution,color=params.optimizedColor,alpha=params.optimizedAlpha)
-    
-_,_,voxelCoordinates,ROIMaps = functions.readROICentroids(originalROIInfoPath,readVoxels=True)
+        ax1.plot(consistencyBinCenters,consistencyDistribution,color=params.optimizedColor,alpha=params.optimizedAlpha)
+        ax2.plot(correlationBinCenters,correlationDistribution,color=params.optimizedColor,alpha=params.optimizedAlpha)   
+#_,_,voxelCoordinates,ROIMaps = functions.readROICentroids(originalROIInfoPath,readVoxels=True)
 
 ROIIndices = []
-for ROIMap in ROIMaps:
+for ROIMap in originalROIMaps:
     indices = np.zeros(len(ROIMap),dtype=int)
     for i, voxel in enumerate(ROIMap):
-        indices[i] = np.where((voxelCoordinates == voxel).all(axis=1)==1)[0][0]
+        indices[i] = np.where((originalVoxelCoordinates == voxel).all(axis=1)==1)[0][0]
     ROIIndices.append(indices)
   
 spatialConsistencies = functions.calculateSpatialConsistencyInParallel(ROIIndices,allVoxelTs)
 spatialConsistencyData = {'spaitalConsistencies':spatialConsistencies,'type':'original Brainnetome'}
 with open(originalConsistencySavePath, 'wb') as f:
         pickle.dump(spatialConsistencyData, f, -1)
+consistencyDistribution,consistencyBinCenters = functions.getDistribution(spatialConsistencies,params.nConsistencyBins)
 
-consistencyDistribution,binCenters = functions.getDistribution(spatialConsistencies)
+correlationsToCentroid = functions.calculateCorrelationsToCentroidInParallel(ROIIndices,allVoxelTs,centroidIndices)
+correlationData = {'correlationsToCentroid':correlationsToCentroid,'type':'original Brainnetome'}
+savePath = subject + optimizedCorrelationSaveName
+with open(savePath, 'wb') as f:
+    pickle.dump(correlationData, f, -1)
+correlationDistribution,correlationBinCenters = functions.getDistribution(correlationsToCentroid,params.nConsistencyBins)
 
-ax.plot(binCenters,consistencyDistribution,color=params.optimizedColor,alpha=params.optimizedAlpha,label='Original ROIs')
+ax1.plot(consistencyBinCenters,consistencyDistribution,color=params.originalColor,alpha=params.originalAlpha,label='Original ROIs')
+ax2.plot(correlationBinCenters,correlationDistribution,color=params.originalColor,alpha=params.originalAlpha,label='Original ROIs')
 
-ax.set_xlabel('Spatial consistency')
-ax.set_ylabel('PDF')
-ax.legend()
+ax1.set_xlabel('Spatial consistency')
+ax1.set_ylabel('PDF')
+ax1.legend()
+
+ax2.set_xlabel('Correllation to ROI centroid')
+ax2.set_ylabel('PDF')
+ax2.legend()
 
 plt.tight_layout()
 plt.savefig(figureSavePath,format='pdf',bbox_inches='tight')
