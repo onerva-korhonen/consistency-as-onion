@@ -675,6 +675,8 @@ def growOptimizedROIs(cfg):
                           targetFunction == 'spatialConsistency' (default: 'pearson c' (mean Pearson correlation coefficient))
          fTransform: bool, should Fisher Z transform be applied if targetFunction == 'spatialConsistency' 
                      (default=False)
+         nCPUs: int, number of CPUs used for parallel computation of spatial consistency if 
+                     targetFunction == 'spatialConsistency' (default: 5)
     
     Returns:
     --------
@@ -710,6 +712,10 @@ def growOptimizedROIs(cfg):
             fTransform = cfg['fTransform']
         else:
             fTransform = False
+        if 'nCPUs' in cfg.keys():
+            nCPUs = cfg['nCPUs']
+        else:
+            nCPUs = 5
     
     nROIs = len(ROICentroids)
     nTime = allVoxelTs.shape[1]
@@ -766,7 +772,7 @@ def growOptimizedROIs(cfg):
                 if len(priorityQueue) > 0:
                     if targetFunction == 'correlationWithCentroid':
                         priorityMeasures = [np.corrcoef(centroidTs[i],allVoxelTs[priorityIndex])[0][1] for priorityIndex in priorityQueue]
-                    elif targetFunction == 'spatialConsistency':
+                    elif targetFunction == 'spatialConsistency':    
                         priorityMeasures = np.zeros(len(priorityQueue))
                         for j, voxel in enumerate(priorityQueue):
                             voxelIndices = np.concatenate((ROIInfo['ROIVoxels'][i],np.array([voxel])))
@@ -779,9 +785,6 @@ def growOptimizedROIs(cfg):
         nInQueue = sum([len(priorityQueue) for priorityQueue in priorityQueues])
 
     return ROIInfo, selectedMeasures
-
-
-    
     
     
     
