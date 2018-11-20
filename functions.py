@@ -9,11 +9,13 @@ a frontend script or interactively.
 """
 import numpy as np
 import cPickle as pickle
-import nibabel as nib
+import string
 
 from scipy import io
 from scipy.stats import binned_statistic
 from concurrent.futures import ProcessPoolExecutor as Pool
+
+import pymnet # the multilayer module by Mikko Kivelä
 
 
 def readROICentroids(ROIInfoFile, readVoxels=False, fixCentroids=False, resolution=4):
@@ -675,8 +677,6 @@ def growOptimizedROIs(cfg):
                           targetFunction == 'spatialConsistency' (default: 'pearson c' (mean Pearson correlation coefficient))
          fTransform: bool, should Fisher Z transform be applied if targetFunction == 'spatialConsistency' 
                      (default=False)
-         nCPUs: int, number of CPUs used for parallel computation of spatial consistency if 
-                     targetFunction == 'spatialConsistency' (default: 5)
     
     Returns:
     --------
@@ -712,10 +712,6 @@ def growOptimizedROIs(cfg):
             fTransform = cfg['fTransform']
         else:
             fTransform = False
-        if 'nCPUs' in cfg.keys():
-            nCPUs = cfg['nCPUs']
-        else:
-            nCPUs = 5
     
     nROIs = len(ROICentroids)
     nTime = allVoxelTs.shape[1]
@@ -786,42 +782,63 @@ def growOptimizedROIs(cfg):
 
     return ROIInfo, selectedMeasures
     
-    
-    
-def createNii(ROIInfo, savePath, imgSize=[45,54,45], affine=np.eye(4)):
+# Multilayer construction:
+
+def constructMultilayer(nLayers,layers=[],nodes=[],edges=[]):
     """
-    Based on the given ROIInfo, creates a ROI mask (in .nii format) and saves 
-    it to a given path. To construct the image of the NIFTI file, a 3D
-    matrix of zeros is created and values of voxels belonging to a ROI are set to
-    the index of this ROI.
+    Using the pymnet module by Mikko Kivelä (https://bitbucket.org/bolozna/multilayer-networks-library/overview),
+    creates a multilayer network object.
     
     Parameters:
     -----------
-    ROIInfo: dict, contains:
-                   ROIMaps: list of ROISizes x 3 np.arrays, coordinates of voxels
-                           belonging to each ROI. len(ROIMaps) = nROIs.
-    savePath: str, path for saving the mask.
-    imgSize: list of ints, dimensions of the image in the nii file. If saving a
-             ROI mask created based on existing mask, set to the dimensions of the
-             existing mask. (Default: [45,54,45]; the dimensions of the 4mm 
-             Brainnetome mask)
-    affine: np.array, an image coordination transformation (affine) matrix. (Default:
-            an identity matrix)
-             
+    nLayers: int, number of layers in the network
+    layers: list of strings, names of the layers (default = [], in which case the
+            layers will be automatically named with letters in alphabetical order)
+    nodes: list of objects, nodes of the network. All nodes are present at all layers.
+           (default = [], in which case no nodes are added; they can be added later on.)
+    edges: list of tuples, edges of the network. Each edge should be a 
+           ((source node, source layer), (target node, target layer) or
+           ((source node, source layer), (target node, target layer), weight) tuple (in the
+           previous case, weight is set to 1) (default = [], in which case no nodes are added; 
+           they can be added later on.)
+           
     Returns:
     --------
-    No direct output, saves the mask in NIFTI format to the given path
+    mnet: a pymnet multilayer network object
     """
-    data = np.zeros(imgSize)
-    ROIMaps = ROIInfo['ROIMaps']
-    for i, ROI in enumerate(ROIMaps):
-        if len(ROI.shape) == 1:
-            data[ROI[0],ROI[1],ROI[2]] = i + 1
+    mnet = pymnet.MultilayerNetwork(aspects=1)
+    if len(layers) == 0:
+        letters = list(string.ascii_lowercase)
+        nLetters = len(letters)
+        if nLayers > nLetters:
+            layers = []
+            n = -1
+            for i in range(0,nLayers):
+                if np.remainder(i,nLetters) == 0:
+                    n = n + 1
+                layers.append(letters[np.remainder(i,nLetters)] + str(n))             
         else:
-            for voxel in ROI:   
-                data[voxel[0],voxel[1],voxel[2]] = i + 1
-    img = nib.Nifti1Image(data,affine)     
-    nib.save(img,savePath)
+            layers = letters[0:nLayers]
+    for layer in layers:
+        mnet.add_layer(layer)
+    if len(nodes) > 0:
+        for node in nodes:
+            mnet.add_node(node)
+    if len(edges) > 0:
+        for edge in edges:
+            sourceNode = edge[0][0]
+            sourceLayer = edge[0][1]
+            targetNode = edge[1][0]
+            targetLayer = edge[1][1]
+            if len(edge) == 3:
+                weight = edge[2]
+            else:
+                weight = 1
+            mnet[sourceNode,sourceLayer][targetNode,targetLayer] = weight
+    return mnet
+       
+    
+
     
 # Accessories
     
