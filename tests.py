@@ -11,10 +11,11 @@ import functions
 import numpy as np
 
 testDefSphericalROIs = False
-testFindROIlessVoxels = True
-testFindROIlessNeighbors = True
-testUpdateROI = True
-testGrowROIs = True
+testFindROIlessVoxels = False
+testFindROIlessNeighbors = False
+testUpdateROI = False
+testGrowROIs = False
+testConstructMultilayer = True
 
 # testing defSphericalROIs
 if testDefSphericalROIs: 
@@ -31,7 +32,7 @@ if testDefSphericalROIs:
     diff = np.sum(np.abs(sphereMaps - centroids))
     
     if diff == 0:
-        print "defSphericalROIs: testcase 1 OK"
+        print "defSphericalROIs: testcase 1/3 OK"
         
     # testcase 2: small example space
     space = np.zeros((4,4,4))
@@ -52,7 +53,7 @@ if testDefSphericalROIs:
         diff = diff + np.sum(np.abs(sphereMap - trueMap))
     
     if diff == 0:
-        print "defSphericalROIs: testcase 2 OK"
+        print "defSphericalROIs: testcase 2/3 OK"
         
     # testcase 3: changing sphere size:
     map3 = np.array([[2,2,2],[1,2,2],[2,1,2],[2,2,1],[3,2,2],[2,3,2],[2,2,3], # centroid + at distance 1
@@ -66,7 +67,7 @@ if testDefSphericalROIs:
     diff = np.sum(np.abs(sphereMap - map3))
     
     if diff == 0:
-        print 'defSphericalROIs: testcase 3 OK'
+        print 'defSphericalROIs: testcase 3/3 OK'
         
     # testcase 4: changing resolution
     # NOTE: I've removed the old testcase 4 on 13 Oct 2018: It assumed that voxel coordinates
@@ -100,9 +101,9 @@ if testFindROIlessVoxels:
     indDif = np.sum(np.abs(np.array(trueROIlessIndices)-np.array(testROIlessIndices)))
     
     if mapDif == 0:
-        print 'findROIlessVoxels: maps of ROIless voxels OK'
+        print 'findROIlessVoxels: testcase 1/1: maps of ROIless voxels OK'
     if indDif == 0:
-        print 'findROIlessVoxels: indices of ROIless voxels OK'
+        print 'findROIlessVoxels: testcase 1/1: indices of ROIless voxels OK'
         
 if testFindROIlessNeighbors:
     # testcase 1: a very small space with two small ROIs    
@@ -138,10 +139,10 @@ if testFindROIlessNeighbors:
     indDif2 = np.sum(np.abs(trueROIlessIndices2 - testROIlessIndices2))
     
     if max(mapDif1,mapDif2) == 0:
-        print 'findROIlessNeighbors: maps of ROIless neighbors OK'
+        print 'findROIlessNeighbors: testcase 1/1: maps of ROIless neighbors OK'
         
     if max(indDif1,indDif2) == 0:
-        print 'findROIlessNeighbors: indices of ROIless neighbors OK'
+        print 'findROIlessNeighbors: testcase 1/1: indices of ROIless neighbors OK'
 
 if testUpdateROI:
     # testcase 1: one small ROI in a small space
@@ -181,13 +182,13 @@ if testUpdateROI:
             indicesCorrect.append(all(tempCorrect))
     
     if all(mapCorrect):
-        print 'updateROI: testcase 1: ROI map OK'
+        print 'updateROI: testcase 1/2: ROI map OK'
         
     if all(indicesCorrect):
-        print 'updateROI: testcase 1: ROI voxel indices OK'
+        print 'updateROI: testcase 1/2: ROI voxel indices OK'
         
     if testROIInfo['ROISizes'] == np.array([4]):
-        print 'updateROI: testcase 1: ROI sizes OK'
+        print 'updateROI: testcase 1/2: ROI sizes OK'
         
     # testcase 2: two small ROIs in a small space:
     ROI1 = np.array([[0,0,0]])
@@ -226,13 +227,13 @@ if testUpdateROI:
             indicesCorrect.append(all(tempCorrect))
             
     if all(mapCorrect) and len(testROIMaps) == len(trueROIMaps):
-        print 'updateROI: testcase 2: ROI maps OK'
+        print 'updateROI: testcase 2/2: ROI maps OK'
         
     if all(indicesCorrect) and len(testROIVoxels) == len(trueROIVoxels):
-        print 'updateROI: testcase 2: ROI voxel indices OK'
+        print 'updateROI: testcase 2/2: ROI voxel indices OK'
         
     if np.all(testROISizes == np.array([7,1])):
-        print 'updateROI: testcase 2: ROI sizes OK'
+        print 'updateROI: testcase 2/2: ROI sizes OK'
         
 if testGrowROIs:
     # testcase 1: two small ROIs in a small space
@@ -279,13 +280,72 @@ if testGrowROIs:
             indicesCorrect.append(all(tempCorrect))
             
     if all(mapCorrect) and len(testROIMaps) == len(trueROIMaps):
-        print 'growROIs: ROI maps OK'
+        print 'growROIs: testcase 1/1: ROI maps OK'
         
     if all(indicesCorrect) and len(testROIVoxels) == len(trueROIVoxels):
-        print 'growROI: ROI voxel indices OK'
+        print 'growROI: testcase 1/1: ROI voxel indices OK'
         
     if np.all(testROISizes == np.array([6,2])):
-        print 'growROI: ROI sizes OK'
+        print 'growROI: testcase 1/1: ROI sizes OK'
+    
+if testConstructMultilayer:
+    # testcase 1: maximal input, unweighted edges
+    nodes = [1,2,3]
+    layers = ['a','b']
+    edges = [((1,'a'),(2,'a')),
+             ((1,'a'),(3,'a')),
+             ((2,'a'),(3,'a')),
+             ((1,'a'),(1,'b')),
+             ((2,'a'),(3,'b')),
+             ((3,'a'),(2,'b')),
+             ((1,'b'),(3,'b')),
+             ((3,'b'),(2,'b'))]
+    trueNeighbors1a = [(3,'a'),(2,'a'),(1,'b')]
+    trueNeighbors2a = [(1,'a'),(3,'a'),(3,'b')]
+    trueNeighbors3a = [(1,'a'),(2,'a'),(2,'b')]
+    trueNeighbors1b = [(3,'b'),(1,'a')]
+    trueNeighbors2b = [(3,'b'),(3,'a')]
+    trueNeighbors3b = [(1,'b'),(2,'b'),(2,'a')]
+    
+    mnet = functions.constructMultilayer(2,layers=layers,nodes=nodes,edges=edges)
+    testNeighbors1a = list(mnet[1,'a'])
+    testNeighbors2a = list(mnet[2,'a'])
+    testNeighbors3a = list(mnet[3,'a'])
+    testNeighbors1b = list(mnet[1,'b'])
+    testNeighbors2b = list(mnet[2,'b'])
+    testNeighbors3b = list(mnet[3,'b'])
+    
+    OK1a = (len(trueNeighbors1a)==len(testNeighbors1a)) and all([neighbor in trueNeighbors1a for neighbor in testNeighbors1a])
+    OK2a = (len(trueNeighbors2a)==len(testNeighbors2a)) and all([neighbor in trueNeighbors2a for neighbor in testNeighbors2a])
+    OK3a = (len(trueNeighbors3a)==len(testNeighbors3a)) and all([neighbor in trueNeighbors3a for neighbor in testNeighbors3a])
+    OK1b = (len(trueNeighbors1b)==len(testNeighbors1b)) and all([neighbor in trueNeighbors1b for neighbor in testNeighbors1b])
+    OK2b = (len(trueNeighbors2b)==len(testNeighbors2b)) and all([neighbor in trueNeighbors2b for neighbor in testNeighbors2b])
+    OK3b = (len(trueNeighbors3b)==len(testNeighbors3b)) and all([neighbor in trueNeighbors3b for neighbor in testNeighbors3b])
+    
+    if all([OK1a,OK2a,OK3a,OK1b,OK2b,OK3b]):
+        print "Constructing a multilayer: testcase 1/n OK"
+        
+    # testcase 2: minimal input, unweighted edges
+    mnet = functions.constructMultilayer(2,edges=edges)
+    
+    testNeighbors1a = list(mnet[1,'a'])
+    testNeighbors2a = list(mnet[2,'a'])
+    testNeighbors3a = list(mnet[3,'a'])
+    testNeighbors1b = list(mnet[1,'b'])
+    testNeighbors2b = list(mnet[2,'b'])
+    testNeighbors3b = list(mnet[3,'b'])
+    
+    OK1a = (len(trueNeighbors1a)==len(testNeighbors1a)) and all([neighbor in trueNeighbors1a for neighbor in testNeighbors1a])
+    OK2a = (len(trueNeighbors2a)==len(testNeighbors2a)) and all([neighbor in trueNeighbors2a for neighbor in testNeighbors2a])
+    OK3a = (len(trueNeighbors3a)==len(testNeighbors3a)) and all([neighbor in trueNeighbors3a for neighbor in testNeighbors3a])
+    OK1b = (len(trueNeighbors1b)==len(testNeighbors1b)) and all([neighbor in trueNeighbors1b for neighbor in testNeighbors1b])
+    OK2b = (len(trueNeighbors2b)==len(testNeighbors2b)) and all([neighbor in trueNeighbors2b for neighbor in testNeighbors2b])
+    OK3b = (len(trueNeighbors3b)==len(testNeighbors3b)) and all([neighbor in trueNeighbors3b for neighbor in testNeighbors3b])
+    
+    if all([OK1a,OK2a,OK3a,OK1b,OK2b,OK3b]):
+        print "Constructing a multilayer: testcase 2/n OK"
+    
+    # testcase 3: testing weighted edges
     
     
     
