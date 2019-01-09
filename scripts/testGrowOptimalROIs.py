@@ -17,9 +17,14 @@ if os.path.exists('/home/onerva/consistency-as-onion'):
     sys.path.insert(0,'/home/onerva/consistency-as-onion')
 else:
     sys.path.insert(0,'/home/onerva/projects/consistency-as-onion')   
+if os.path.exists('/home/onerva/consistency-as-onion/nifti-tools'):
+    sys.path.insert(0,'/home/onerva/consistency-as-onion/nifti-tools')
+else:
+    sys.path.insert(0,'/home/onerva/projects/consistency-as-onion/nifti-tools')
 
 import functions
 import onion_parameters as params
+import nifti_functions
 
 allVoxelTsPath = params.testSubjectFolders[0] + params.ROIVoxelTsFileName
 ROIInfoFile = params.originalROIInfoFile
@@ -49,7 +54,7 @@ plt.tight_layout()
 plt.savefig(params.maximalMeasureFigurePath,format='pdf',bbox_inches='tight')
 
 
-functions.createNii(ROIInfo, niiSavePath, imgSize=[45,54,45], affine=np.eye(4))
+nifti_functions.createNii(ROIInfo, niiSavePath, imgSize=[45,54,45], affine=np.eye(4))
 with open(pickleSavePath, 'wb') as f:
         pickle.dump(ROIInfo, f, -1)
 
