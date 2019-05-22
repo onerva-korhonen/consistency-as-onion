@@ -29,7 +29,8 @@ optimizedCorrelationSaveName = 'correlation-to-centroid-optimized-spatialConsist
 distanceMatrixPath = '/media/onerva/KINGSTON/test-data/outcome/distance-matrix-brainnetome-4mm.pkl'
 consistencyVsRadiusPath = '/media/onerva/KINGSTON/test-data/outcome/consistency-over-radia-brainnetome-4mm-test.pkl'
 
-spatialConsistencyValidationPath = '/media/onerva/KINGSTON/test-data/outcome/spatial-consisistency-validation-spatialConsistency.pdf'
+spatialConsistencyValidationPath = '/media/onerva/KINGSTON/test-data/outcome/spatial-consisistency-validation-weighted-mean-consistency.pdf'
+sizeSavePath = '/media/onerva/KINGSTON/test-data/outcome/spatial-consistency-validation-local-weighted-consistency-sizes.pdf'
 maximalMeasureFigurePath = '/media/onerva/KINGSTON/test-data/outcome/maximal-measure-spatialConsistency.pdf'
 
 # Parallelization
@@ -37,6 +38,7 @@ nCPUs = 5
 
 # Distributions and binning
 nConsistencyBins = 50
+nSizeBins = 50
 
 # Visualization
 optimizedColor = 'r'
