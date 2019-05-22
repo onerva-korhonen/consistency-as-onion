@@ -182,7 +182,7 @@ def calculateSpatialConsistency(params):
     fTransform = cfg['fTransform']
     voxelIndices = params[1]
     
-    print 'Calculating spatial consistency'
+    #print 'Calculating spatial consistency'
     
     if np.amax(voxelIndices.shape) == 0:
         spatialConsistency = 0
