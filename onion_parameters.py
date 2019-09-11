@@ -45,4 +45,5 @@ optimizedColor = 'r'
 optimizedAlpha = 0.9
 originalColor = 'k'
 originalAlpha = 0.5
-
+inROILs = '-'
+betweenROILs = '--'
