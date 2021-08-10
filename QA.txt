@@ -13,3 +13,5 @@ A: It returns a modified version of the original ROIInfo. This means that the or
 
 Q: Are voxels in the same order in the voxelCoordinates array (output from readROICentroids) and in the time series file?
 A: Yes, they are. In readROICentroids, the voxel coordinates are read ROI by ROI in the same order as they are in in the ROI map. On the other hand, in the time series file, voxel time series are listed ROI by ROI in the order given by ROI maps.
+
+This is just testing.
